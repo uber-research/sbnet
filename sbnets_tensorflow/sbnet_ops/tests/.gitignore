@@ -1,0 +1,6 @@
+*.o
+*.swp
+out.txt
+core
+*.nvvp
+*.pyc

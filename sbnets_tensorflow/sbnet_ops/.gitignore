@@ -1,0 +1,7 @@
+.idea/
+cmake-build-debug/
+build/
+*.so
+cuda_jetbrains.h
+cmake*
+CMake*
