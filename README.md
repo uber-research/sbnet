@@ -19,13 +19,13 @@ Please refer to [CUDA Wikipedia](https://en.wikipedia.org/wiki/CUDA) page to loo
 
 To build a release version of the library, run
 
-`cd sbnet_ops && make`
+`cd sbnets_tensorflow/sbnet_ops && make`
 
 To run tests:
 
-`cd sbnet_ops && make test`
+`cd sbnets_tensorflow/sbnet_ops && make test`
 
-The library will be built in sbnet_ops/build/libsbnet.so and symlinked to sbnet_ops/libsbnet.so.
+The library will be built in sbnets_tensorflow/sbnet_ops/build/libsbnet.so and symlinked to sbnets_tensorflow/sbnet_ops/libsbnet.so.
 To import the library into your TensorFlow Python code use the following command:
 
 ```
@@ -128,12 +128,12 @@ Note that even though currently we support atomic adds in scatter with add=True,
 
 ## Benchmarks and tests
 
-Benchmarks for SBNet are located in benchmarks/ subdirectory.
+Benchmarks for SBNet are located in sbnets_tensorflow/benchmarks/ subdirectory.
 
 To run benchmarks execute:
 
 ```
-cd benchmarks & ./run_all_behchmarks.bash
+cd sbnets_tensorflow/benchmarks & ./run_all_behchmarks.bash
 ```
 
 Note that we average over a number of runs and test many permutations of parameters so this may take about 20 minutes (on a Titan XP) and will produce a number of .csv files in your /home/user/ directory.
@@ -141,7 +141,7 @@ We benchmark individual sparse convolutions and entire sparse ResNet blocks on a
 
 To run unit tests execute:
 ```
-cd tests & ./run_all_unittests.bash
+cd sbnets_tensorflow/sbnet_ops & make tests
 ```
 
 
@@ -159,3 +159,5 @@ Code integration with Submanifold Sparse Convolutions was tested with git sha 60
 cd SparseConvNet
 git checkout 609224df3c0e42b8a1dd4073aaa56fab805096c6
 ```
+
+The benchmark code is located in sbnets_tensorflow/benchmark_submanifold directory.
