@@ -10,7 +10,7 @@ Note that Tensorflow 1.4 currently has a build issue with custom ops, so when co
 
 ## Harware requirements
 
-Code was tested on and compiled for Pascal 6.1 architecture (Titan XP, GTX 1080Ti, GTX 1080).
+Code was tested on and compiled for NVIDIA CUDA Pascal 6.1 architecture (Titan XP, GTX 1080Ti, GTX 1080).
 To compile for Maxwell or your preferred architecture please modify the Makefile and add the corresponding line, such as `-gencode arch=compute_52,code=sm_52` for older cards such as GTX980.
 Please refer to [CUDA Wikipedia](https://en.wikipedia.org/wiki/CUDA) page to lookup the architecture code for your graphics card.
 
@@ -133,7 +133,7 @@ Benchmarks for SBNet are located in sbnets_tensorflow/benchmarks/ subdirectory.
 To run benchmarks execute:
 
 ```
-cd sbnets_tensorflow/benchmarks & ./run_all_behchmarks.bash
+cd sbnets_tensorflow/benchmarks && ./run_all_behchmarks.bash
 ```
 
 Note that we average over a number of runs and test many permutations of parameters so this may take about 20 minutes (on a Titan XP) and will produce a number of .csv files in your /home/user/ directory.
@@ -141,7 +141,7 @@ We benchmark individual sparse convolutions and entire sparse ResNet blocks on a
 
 To run unit tests execute:
 ```
-cd sbnets_tensorflow/sbnet_ops & make tests
+cd sbnets_tensorflow/sbnet_ops && make tests
 ```
 
 
