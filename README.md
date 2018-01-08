@@ -1,7 +1,9 @@
-# SBNets
+# SBNet
 
-This repository implements Sparse Block's Networks paper as a TensorFlow custom operations library.
-It also includes a Python implementation of sparse ResNet blocks and gradients based on SBNet architecture as well as a perf comparison benchmark for Submanifold Sparse Convolutional Networks.
+This repository implements Sparse Blocks Network paper ([blog post](https://eng.uber.com/sbnet), 
+[arXiv](https://arxiv.org/abs/1801.02108)) as a TensorFlow custom operations library.
+It also includes a Python implementation of sparse ResNet blocks and gradients based on SBNet 
+architecture as well as a perf comparison benchmark for Submanifold Sparse Convolutional Networks.
 
 ## Prerequisites
 
@@ -161,3 +163,27 @@ git checkout 609224df3c0e42b8a1dd4073aaa56fab805096c6
 ```
 
 The benchmark code is located in sbnets_tensorflow/benchmark_submanifold directory.
+
+
+## Contributing to this repository
+
+For now, we do not accept pull request to this repo, as we are currently setting up automated CI.
+If you would like to contribute to this repository, feel free create a GitHub issue.
+
+## Citation
+
+M. Ren, A. Pokrovsky, B. Yang, and R. Urtasun. SBNet: Sparse Blocks Network for Fast Inference. 
+*CoRR*, abs/1801.02108, 2018.
+
+```
+@article{ren18sbnet,
+  author    = {Mengye Ren and 
+               Andrei Pokrovsky and
+               Bin Yang and
+               Raquel Urtasun},
+  title     = {SBNet: Sparse Blocks Network for Fast Inference},
+  journal   = {CoRR},
+  volume    = {abs/1801.02108},
+  year      = {2018},
+}
+```
