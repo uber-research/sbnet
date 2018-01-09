@@ -1,14 +1,16 @@
 # SBNet
 
-This repository implements Sparse Blocks Network paper ([blog post](https://eng.uber.com/sbnet), 
-[arXiv](https://arxiv.org/abs/1801.02108)) as a TensorFlow custom operations library.
-It also includes a Python implementation of sparse ResNet blocks and gradients based on SBNet 
-architecture as well as a perf comparison benchmark for Submanifold Sparse Convolutional Networks.
+This repository releases code for our paper [*SBNet: Sparse Blocks Network for Fast Inference*](https://arxiv.org/abs/1801.02108). Please refer to our [blog post](https://eng.uber.com/sbnet) for more context. 
+
+This repository contains 
+1. a TensorFlow custom operations library that implements SBNet,
+2. a Python implementation of sparse ResNet blocks, and
+3. a benchmark for performance comparison with [Submanifold Sparse Convolutional Networks](https://arxiv.org/abs/1706.01307).
 
 ## Prerequisites
 
-Installation was tested under Ubuntu 14.04 and 16.04 with TensorFlow 1.2, cuDNN 6.0 and cuDNN 5.0. Note that by default Tensorflow 1.2 comes with cuDNN 5.0, we used a custom build to upgrade to a more recent version so we could compare with PyTorch implementation using the same version of cuDNN).
-Note that Tensorflow 1.4 currently has a build issue with custom ops, so when compiling for 1.4 you may need to follow some suggestions from [this thread](https://github.com/tensorflow/tensorflow/issues/12860).
+Installation was tested under Ubuntu 14.04 and 16.04 with TensorFlow 1.2, cuDNN 6.0 and cuDNN 5.0. Note that since by default Tensorflow 1.2 comes with cuDNN 5.0, we used a custom build to upgrade to a more recent version so we could compare with PyTorch implementation using the same version of cuDNN).
+Tensorflow 1.4 currently has a build issue with custom ops, so when compiling for 1.4 you may need to follow some suggestions from [this thread](https://github.com/tensorflow/tensorflow/issues/12860).
 
 ## Harware requirements
 
