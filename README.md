@@ -174,6 +174,7 @@ If you would like to contribute to this repository, feel free create a GitHub is
 
 ## Citation
 
+If you use our code, please consider cite the following:
 M. Ren, A. Pokrovsky, B. Yang, and R. Urtasun. SBNet: Sparse Blocks Network for Fast Inference. 
 *CoRR*, abs/1801.02108, 2018.
 
