@@ -1,5 +1,5 @@
 #
-#   Sparse Blocks Networks
+#   Sparse Blocks Network
 #
 
 .PHONY: all clean test
