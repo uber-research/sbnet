@@ -1,4 +1,4 @@
-# Sparse Blocks Networks (SBNet)
+# Sparse Blocks Network (SBNet)
 
 This repository releases code for our paper [*SBNet: Sparse Blocks Network for Fast Inference*](https://arxiv.org/abs/1801.02108). Please refer to our [blog post](https://eng.uber.com/sbnet) for more context. 
 

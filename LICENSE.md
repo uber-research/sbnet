@@ -1,4 +1,4 @@
-Sparse Blocks Networks
+Sparse Blocks Network
 
 Copyright (c) 2017-2018, Uber Technologies, Inc.
 
