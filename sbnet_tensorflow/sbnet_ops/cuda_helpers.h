@@ -20,7 +20,6 @@
 #ifndef CUDA_HELPERS_H
 #define CUDA_HELPERS_H
 
-#include "cuda_jetbrains.h"
 #include <stdio.h>
 #include "assert.h"
 
