@@ -152,7 +152,7 @@ class TestSparseConvolutions(unittest.TestCase):
             use_atomics = False):
 
         tf.logging.set_verbosity(tf.logging.ERROR)
-        print "============== Testing batch, layerSize = ", N, layerSize, "========="
+        print("============== Testing batch, layerSize = ", N, layerSize, "=========")
         results = [[], []]
         NN, HH, WW, CC, RR, SS, UU, VV, BCH, BCW, numBins, mask, x \
             = generateInputs(layerSize, RS, UV, BOFFS, N)
@@ -171,7 +171,7 @@ class TestSparseConvolutions(unittest.TestCase):
                     if sparsity == 100:
                        tol = 1e32 # make sure at 100% sparsity we get zero blocks
                     a = tf.constant(mask, dtype=tf.float32)
-                    print ("-------------- BCNT=", BCH, BCW)
+                    print("-------------- BCNT=", BCH, BCW)
                     b = sbnet_module.reduce_mask(
                         a, tf.constant([BCH, BCW], dtype=tf.int32),
                         bsize=[RR, SS],
@@ -231,9 +231,9 @@ class TestSparseConvolutions(unittest.TestCase):
 
                     result = sess.run([b, blockStack, y1000, dt])
                     if result[3] != -1.0:
-                        print "CUDA time=", result[3]
-                    #print "BLOCKS=", result[1]
-                    #print "BLKIDS=", result[0]
+                        print("CUDA time=", result[3])
+                    #print("BLOCKS=", result[1])
+                    #print("BLKIDS=", result[0])
 
                     result[0] = lambda: 0
                     result[0].bin_counts = py_bin_counts
@@ -248,11 +248,11 @@ class TestSparseConvolutions(unittest.TestCase):
                         blockStackResult = result[1]
                         err = gradient_checker.compute_gradient_error(
                             tf_x, x.shape, blockStack, blockStackResult.shape, x_init_value=x)
-                        print "Device, grad error=", devStr, err
+                        print("Device, grad error=", devStr, err)
                         self.assertTrue(err < 0.001)
                         #grads = gradients_impl.gradients([blockStack], [tf_x])
                         #resultGrads = sess.run([grads])
-                        #print resultGrads
+                        #print(resultGrads)
 
                         # if forward pass scatters are overlapping, some values will be overwritten indeterministically
                         # so gradient currently doesn't make sense without atomicAdd in forward scatter
@@ -264,7 +264,7 @@ class TestSparseConvolutions(unittest.TestCase):
                                 y1000Result.shape,
                                 x_init_value=[x, x * 0.0 + offset])
                             self.assertTrue(err < 0.001)
-                            print "Device, grad error=", devStr, err
+                            print("Device, grad error=", devStr, err)
 
         # tidx = 0 : untransposed results
         # tidx = 1 : transposed results
@@ -312,11 +312,11 @@ class TestSparseConvolutions(unittest.TestCase):
             scatteredGpu = rt[igpu][2]
             self.assertTrue(np.array_equal(scatteredCpu, scatteredGpu))
             #errIndex = np.unravel_index(np.absolute(gatheredCpu - gatheredGpu).argmax(), gatheredCpu.shape)
-            #print errIndex
+            #print(errIndex)
 
         self.assertTrue(np.array_equal(gatheredCpuT, np.transpose(gatheredCpuUT, [0, 3, 1, 2])))
         self.assertTrue(np.array_equal(gatheredGpuT, np.transpose(gatheredGpuUT, [0, 3, 1, 2])))
-        print "========================= Test PASSED =========================="
+        print("========================= Test PASSED ==========================")
 
     def testSimple(self):
         self.runTestForOneSize((2, 3, 2), RS=(2, 3), UV=(3, 4))
@@ -426,4 +426,3 @@ class TestSparseConvolutions(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
-
