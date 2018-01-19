@@ -17,7 +17,7 @@
 
 """
 
-
+from .benchmark_utils import prefix_path
 import ctypes
 
 _cudart = ctypes.CDLL('libcudart.so')
