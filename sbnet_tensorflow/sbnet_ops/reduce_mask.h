@@ -37,7 +37,7 @@ template <typename Device, typename T> struct ReduceMaskFunctor {
         int bCntW,   // Number of blocks, width.
         unsigned int numBins,
         unsigned int binSize,
-        long long* activeBlockIndices, // Indices of active blocks.
+        int* activeBlockIndices, // Indices of active blocks.
         int* binCounts,
         bool avgPool
         );

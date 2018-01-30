@@ -61,18 +61,6 @@ __device__ struct XYZ {
     __device__ XYZ(int ax = 0, int ay = 0, int az = 0) { x = ax; y = ay; z = az; };
 };
 
-__device__ struct SparseBlockIndex {
-    static inline __device__ ST::u64 to64Bit(ST::u16 n, ST::u16 h, ST::u16 w) {
-        return (ST::u64(n)<<32)+(ST::u64(h)<<16)+ST::u64(w);
-    }
-    static inline __device__ void from64Bit(ST::u64 val, int& n, int& h, int& w) {
-        w = val & 0xFFFF;
-        h = (val >> 16) & 0xFFFF;
-        n = (val >> 32) & 0xFFFF;
-    }
-};
-
-
 // Utility macros for debug prints
 #if 0 // enable for debugging, otherwise it will compile out
 #define dprintEQ(bid, tid, args) \
