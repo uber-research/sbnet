@@ -25,25 +25,26 @@ import tensorflow as tf
 from sparse_conv_lib import convert_mask_to_indices, convert_mask_to_indices_custom
 from sparse_conv_lib import calc_block_params
 
+def to_tuples(l):
+    return [tuple(x) for x in l]
 
 class ReduceMaskTests(tf.test.TestCase):
     def _test_reduce_mask(self, mask, bsize, ksize, strides, padding):
         with tf.Session():
             mask = tf.constant(mask)
             indices = convert_mask_to_indices(mask, bsize, ksize, strides, padding, 0.0)
+            indices_val = indices.eval()
+
             x_shape = [1] + [int(ss) for ss in mask.get_shape()[1:]] + [1]
             block_params = calc_block_params(x_shape, bsize, ksize, strides, padding)
             indices_custom = convert_mask_to_indices_custom(mask, block_params, 0.0)
 
             activeBlockIndicesResult = indices_custom.active_block_indices.eval()
             binCountsResult = indices_custom.bin_counts.eval()
-            activeBlockIndicesResult = activeBlockIndicesResult[:binCountsResult[0]]
-            sortIdx = activeBlockIndicesResult.argsort()
-            activeBlockIndicesResult = activeBlockIndicesResult[sortIdx]
-            clippedResults = np.copy(activeBlockIndicesResult.view(np.uint16))
-            clippedResults = clippedResults.reshape([-1, 4])[:, [2, 1, 0]]
-            indices_val = indices.eval()
-            np.testing.assert_array_equal(indices_val, clippedResults)
+            clippedResults = activeBlockIndicesResult[:binCountsResult[0], :]
+            clippedResults = to_tuples(clippedResults.tolist())
+            refResults = to_tuples(indices_val.tolist())
+            np.testing.assert_equal(set(clippedResults), set(refResults))
 
     def test_basic(self):
         bsize = [1, 3, 3, 1]

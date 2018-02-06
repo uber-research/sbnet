@@ -61,7 +61,7 @@ struct TileLocal {
 // Load into tiles of size BhBwCtile
 // Wrap threads around BhBwC
 // CUDA blocks are mapped to tiles (K CUDA blocks per sparsity block)
-// (Currently 1 to 1 to indices in activeBlockIndices)
+// (Currently 1 to 1 to triples of indices in activeBlockIndices)
 // (TODO: use all binCounts if needed for perf)
 // tC and tH are further tiled using tC1 and TH1b-long
 // tiles to create smaller chunks of work per block
@@ -69,7 +69,7 @@ template<int tNTHREADS, typename tHb, typename tH1b, typename tWb, typename tC, 
 __device__ void blockGatherTiled_t(
     const float* x,                        // NHWC
     // currently only supporting single bin
-    const u64* activeBlockIndices,
+    const short* activeBlockIndices,
     // variable size output but conservative worst-case memory alloc (0% sparsity, all blocks active)
     float* y,
     const int N, const int H, const int W, // C=tC is templated
@@ -88,11 +88,12 @@ __device__ void blockGatherTiled_t(
     assert(R1 <= R);
     assert(C1 <= C);
 
-    int biN, biH, biW; // retrieve the block index from sparse u64 index
-    const u64 sbi = activeBlockIndices[blockIdx.x];
     const int c1i = blockIdx.y;
     const int r0 = blockIdx.z*R1;
-    SparseBlockIndex::from64Bit(sbi, biN, biH, biW);
+    int baseIdx = blockIdx.x*3;
+    int biN = activeBlockIndices[baseIdx+0];
+    int biH = activeBlockIndices[baseIdx+1];
+    int biW = activeBlockIndices[baseIdx+2];
 
     // wrap threads around HbWbK
     int bh0 = bOffsH0 + bStrH*biH; // current block's first pixel hw
@@ -175,7 +176,7 @@ template<int tNTHREADS, typename tHb, typename tH1b, typename tWb, typename tC, 
 __device__ void blockScatterTiled_t(
     const float* x,                        // blockDim.x*tHb*tWb*tC - input tensor
     // currently only supporting single bin
-    const u64* activeBlockIndices, // same indices as for blockGather
+    const short* activeBlockIndices, // same indices as for blockGather
     // variable size output but conservative worst-case memory alloc (0% sparsity, all blocks active)
     float* y,                              // NHWC
     const int N, const int H, const int W, // C=tC is templated
@@ -195,12 +196,12 @@ __device__ void blockScatterTiled_t(
     assert(R1 <= R);
     assert(C1 <= C);
 
-    int biN, biH, biW; // retrieve the block index from sparse u64 index
-    const u64 sbi = activeBlockIndices[blockIdx.x];
     const int c0 = blockIdx.y*C1;
     const int r0 = blockIdx.z*R1;
-    SparseBlockIndex::from64Bit(sbi, biN, biH, biW);
-
+    int baseIdx = blockIdx.x*3;
+    int biN = activeBlockIndices[baseIdx+0];
+    int biH = activeBlockIndices[baseIdx+1];
+    int biW = activeBlockIndices[baseIdx+2];
 
     // wrap threads around HbWbK
     int bh0 = bOffsH0 + bStrH*biH; // current block's first pixel hw
@@ -292,7 +293,7 @@ template<int tNTHREADS, int RR, int RR1, int SS, int CC1, bool TR>
 __global__ void blockGatherTiled0(
     const float* x,                               // NHWC
     // currently only supporting single bin
-    const u64* activeBlockIndices, // result
+    const short* activeBlockIndices, // result
     // variable size output but requires conservative worst-case memory alloc (0% sparsity, all blocks active)
     float* y,
     const int N, const int H, const int W, const int C, // dimensions for x
@@ -309,7 +310,7 @@ template<int tNTHREADS, int RR, int RR1, int SS, int CC1, bool ADD, bool TR, boo
 __global__ void blockScatterTiled0(
     const float* x,                               // NHWC
     // currently only supporting single bin
-    const u64* activeBlockIndices, // result
+    const short* activeBlockIndices, // result
     // variable size output but requires conservative worst-case memory alloc (0% sparsity, all blocks active)
     float* y,
     const int N, const int H, const int W, const int C, // dimensions for x
@@ -331,7 +332,7 @@ __global__ void blockScatterTiled0(
 template<int tNTHREADS>
 __global__ void blockGatherTiled1(
     const float* x,                               // NHWC
-    const u64* activeBlockIndices, // result
+    const short* activeBlockIndices, // result
     float* y,
     const int N, const int H, const int W, const int C, // dimensions for x
     const int bOffsH0, const int bOffsW0,         // generally negative - first block element offset for correct padding
@@ -349,7 +350,7 @@ template<int tNTHREADS>
 __global__ void blockScatterTiled1(
     const float* x,                               // NHWC
     // currently only supporting single bin
-    const u64* activeBlockIndices, // result
+    const short* activeBlockIndices, // result
     // variable size output but requires conservative worst-case memory alloc (0% sparsity, all blocks active)
     float* y,
     const int N, const int H, const int W, const int C, // dimensions for x

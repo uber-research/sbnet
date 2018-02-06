@@ -60,7 +60,7 @@ __device__ void reduceMask_t(
     unsigned int  numBins,                    // number of bins to partition activeBlockIndices to reduce atomics pressure
     unsigned int  binSize,
     unsigned int* binCounts,                  // counts for sub-blocks, initialized to 0
-    u64* activeBlockIndices,                  // result
+    short* activeBlockIndices,                // result
     const int bOffsH0, const int bOffsW0,     // generally negative - first block element offset for correct padding
     const int bStrH, const int bStrW,         // block strides
     const int bCntH, const int bCntW,         // block counts
@@ -147,9 +147,11 @@ __device__ void reduceMask_t(
                 atomicSub(&binCounts[myBin], unsigned(1));
                 myBin++;
             }
-            u64 as64 = SparseBlockIndex::to64Bit(blockIdx.z, blockIdx.y, blockIdx.x);
 
-            activeBlockIndices[myBin*binSize+inBinOffs] = as64;
+            int offs = (myBin*binSize+inBinOffs)*3;
+            activeBlockIndices[offs+0] = blockIdx.z;
+            activeBlockIndices[offs+1] = blockIdx.y;
+            activeBlockIndices[offs+2] = blockIdx.x;
         } // if (mx1 > threshold)
     } // if (tid == 0)
 }
@@ -162,7 +164,7 @@ __global__ void reduceMask(
     unsigned int  numBins,                    // number of bins to partition activeBlockIndices to reduce atomics pressure
     unsigned int  binSize,
     unsigned int* binCounts,                  // counts for sub-blocks, initialized to 0
-    u64* activeBlockIndices,                  // result: block indices split into bins, currently assuming even sized bins.
+    short* activeBlockIndices,                // result: block indices split into bins, currently assuming even sized bins.
                                               // the counter will spill into the next bin on overflow.
                                               // It is expected that activeBlockIndices is allocated enough memory for worst case
                                               // number of active indices, ie all blocks are active

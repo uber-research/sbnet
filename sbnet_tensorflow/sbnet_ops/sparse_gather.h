@@ -36,7 +36,7 @@ template <typename Device, typename T> struct SparseGatherFunctor {
         int bStrH,          // Block stride, height.
         int bStrW,          // Block stride, width.
         int numActive, // Number of active blocks.
-        const int64_t* activeBlockIndices, // Indices of active blocks.
+        const short* activeBlockIndices, // Indices of active blocks.
         bool transpose
     );
 };
@@ -58,7 +58,7 @@ template <typename Device, typename T> struct SparseScatterFunctor {
         int bStrH,          // Block stride, height.
         int bStrW,          // Block stride, width.
         int numActive,      // Number of active blocks.
-        const int64_t* activeBlockIndices, // Indices of active blocks.
+        const short* activeBlockIndices, // Indices of active blocks.
         bool add,
         bool transpose,
         bool atomic

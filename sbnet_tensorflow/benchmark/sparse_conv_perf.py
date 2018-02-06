@@ -216,7 +216,7 @@ def run_one(sess,
     """
     # Placeholder is needed when x's size is larger than 2GB.
     x_init = tf.placeholder(tf.float32, config.xsize)
-    ind_init = tf.placeholder(tf.int64)
+    ind_init = tf.placeholder(tf.int16)
     bin_init = tf.placeholder(tf.int32)
     if config.is_sparse:
         mask = tf.constant(mask)
