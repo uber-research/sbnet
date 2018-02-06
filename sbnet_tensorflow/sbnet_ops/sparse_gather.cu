@@ -62,7 +62,7 @@ template <typename T> struct SparseGatherFunctor<GPUDevice, T> {
         const T* x, int N, int H, int W, int C,
         T* y,
         int bOffsH0, int bOffsW0, int bSzH, int bSzW, int bStrH, int bStrW,
-        int numActive, const int* activeBlockIndices, bool transpose
+        int numActive, const int64_t* activeBlockIndices, bool transpose
     )
     {
         LaunchParams lp(C, bSzH, bSzW, numActive);
@@ -72,7 +72,7 @@ template <typename T> struct SparseGatherFunctor<GPUDevice, T> {
             if (bSzH == RR && bSzW == RR && lp.fittingC1 == CC1) { \
                 hasInst = true; \
                 blockGatherTiled0<512, RR, COMPUTE_R1(RR), RR, CC1, trans><<<lp.grid, lp.block, lp.shmemSize, d.stream()>>>( \
-                    x, (const int*)activeBlockIndices, \
+                    x, (const unsigned long long*)activeBlockIndices, \
                     y, N, H, W, C, bOffsH0, bOffsW0, bStrH, bStrW); \
             } else
 
@@ -140,7 +140,7 @@ template <typename T> struct SparseGatherFunctor<GPUDevice, T> {
         {
             //printf("gather, C, bSzH, bSzW=%d, %d, %d, fittingC1=%d\n", C, bSzH, bSzW, lp.fittingC1);
             blockGatherTiled1<512><<<lp.grid, lp.block, lp.shmemSize, d.stream()>>>(
-                x, (const int*)activeBlockIndices,
+                x, (const unsigned long long*)activeBlockIndices,
                 y, N, H, W, C, bOffsH0, bOffsW0, bStrH, bStrW,
                 bSzH, lp.bSzH1, bSzW, lp.fittingC1, transpose);
         }
@@ -157,7 +157,7 @@ template <typename T> struct SparseScatterFunctor<GPUDevice, T> {
         const T* x, int N, int H, int W, int C,
         T* y,
         int bOffsH0, int bOffsW0, int bSzH, int bSzW, int bStrH, int bStrW,
-        int numActive, const int* activeBlockIndices, bool add, bool transpose, bool atomic
+        int numActive, const int64_t* activeBlockIndices, bool add, bool transpose, bool atomic
     )
     {
         LaunchParams lp(C, bSzH, bSzW, numActive);
@@ -168,7 +168,7 @@ template <typename T> struct SparseScatterFunctor<GPUDevice, T> {
                 hasInst = true; \
                 blockScatterTiled0<512, RR, COMPUTE_R1(RR), RR, CC1, addt, transt, false> \
                     <<<lp.grid, lp.block, lp.shmemSize, d.stream()>>>( \
-                        x, (const int*)activeBlockIndices, \
+                        x, (const unsigned long long*)activeBlockIndices, \
                         y, N, H, W, C, bOffsH0, bOffsW0, bStrH, bStrW); \
             } else
 
@@ -251,7 +251,7 @@ template <typename T> struct SparseScatterFunctor<GPUDevice, T> {
         if (!hasInst) {
             //printf("scatter, C, bSzH, bSzW=%d, %d, %d, fittingC1=%d\n", C, bSzH, bSzW, lp.fittingC1);
             blockScatterTiled1<512><<<lp.grid, lp.block, lp.shmemSize, d.stream()>>>(
-                x, (const int*)activeBlockIndices,
+                x, (const unsigned long long*)activeBlockIndices,
                 y, N, H, W, C, bOffsH0, bOffsW0, bStrH, bStrW,
                 bSzH, lp.bSzH1, bSzW, lp.fittingC1, add, transpose, atomic);
         }

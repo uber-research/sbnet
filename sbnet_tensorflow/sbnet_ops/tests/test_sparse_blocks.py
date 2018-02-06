@@ -285,14 +285,11 @@ class TestSparseConvolutions(unittest.TestCase):
                     )    # make sure the count of indices matches
             if sparsity == 100:
                 self.assertTrue(
-                    reducedCpu.bin_counts[0] == 1 and
-                    np.array_equal(reducedCpu.active_block_indices[0], np.array([0, 0, 0])))
+                    reducedCpu.bin_counts[0] == 1 and reducedCpu.active_block_indices[0] == 0)
             bin_count = reducedCpu.bin_counts[0]
-            set0 = set([tuple(x) for x in cpuIndices.tolist()])
-            set1 = set([tuple(x) for x in gpuIndices.tolist()])
-            toSort = reducedGpu.active_block_indices[0:bin_count].tolist()
-            toSort = np.array([(x[0]*BCH*BCW + x[1]*BCW + x[2]) for x in toSort])
-            sorted = toSort.argsort()
+            set0 = set([x for x in cpuIndices])
+            set1 = set([x for x in gpuIndices])
+            sorted = reducedGpu.active_block_indices[0:bin_count].argsort()
             self.assertTrue(set0 == set1)    # make sure the sets of indices match
             self.assertTrue(np.array_equal(cpuIndices, gpuIndices[sorted]))    # make sure sorted indices match
 

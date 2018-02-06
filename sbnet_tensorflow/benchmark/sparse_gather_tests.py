@@ -74,9 +74,10 @@ class SparseGatherTests(tf.test.TestCase):
 
             a1, a2, active, num = sess.run(
                 [a_tf, a_custom, ind.active_block_indices, ind.bin_counts])
-            l1 = tuple([tuple(x) for x in a1.reshape(-1, 3).tolist()])
-            l2 = tuple([tuple(x) for x in a2.reshape(-1, 3).tolist()])
-            np.testing.assert_array_equal(set(l1), set(l2))
+            num = num[0]
+            sortIdx = active[:num].argsort()
+            a2 = a2[sortIdx]
+            np.testing.assert_array_equal(a1, a2)
 
     def test_basic(self):
         bsize = [1, 3, 3, 1]

@@ -60,7 +60,7 @@ template <typename T> struct ReduceMaskFunctor<CPUDevice, T> {
         int bCntW,                      // Number of blocks, width.
         unsigned int numBins,
         unsigned int binSize,
-        int* activeBlockIndices,        // Indices of active blocks.
+        int64* activeBlockIndices,      // Indices of active blocks.
         int* binCounts,                 // Number of active indices.
         bool avgPool
         )
@@ -86,12 +86,8 @@ template <typename T> struct ReduceMaskFunctor<CPUDevice, T> {
             } } }
             if (avgPool)
                 active = ( (sum/(bSzH*bSzW)) > threshold );
-            if (active) {
-                activeBlockIndices[count*3+0] = n;
-                activeBlockIndices[count*3+1] = bh;
-                activeBlockIndices[count*3+2] = bw;
-                count++;
-            }
+            if (active)
+                activeBlockIndices[count++] = to64Bit((uint16)n, (uint16)bh, (uint16)bw);
         } } }
         binCounts[0] = count;
     }
@@ -106,7 +102,7 @@ REGISTER_OP("ReduceMask")
     .Attr("avgpool: bool = false")
     .Input("mask: T")
     .Input("dynamic_bcount: int32")
-    .Output("active_block_indices: int32")
+    .Output("active_block_indices: int64")
     .Output("bin_counts: int32");
 
 // template parameter <T> is the datatype of the tensors.
@@ -149,8 +145,8 @@ public:
         Tensor* activeBlockIndices = NULL;
         TensorShape activeBlockShape;
         int maxIndices = N * bCntH_ * bCntW_;
-        int activeBlockShapeArr[] = { maxIndices, 3 };
-        TensorShapeUtils::MakeShape(activeBlockShapeArr, 2, &activeBlockShape);
+        int activeBlockShapeArr[] = { maxIndices };
+        TensorShapeUtils::MakeShape(activeBlockShapeArr, 1, &activeBlockShape);
         OP_REQUIRES_OK(context, context->allocate_output(0, activeBlockShape, &activeBlockIndices));
 
         unsigned int numBins = 1;
@@ -179,8 +175,8 @@ public:
             bCntW_,                                   // Number of blocks, width.
             numBins,
             binSize,
-            activeBlockIndices->flat<int32>().data(), // Indices of active blocks.
-            binCounts.flat<int32>().data(),           // Counts per bin of active blocks.
+            activeBlockIndices->flat<int64>().data(), // Indices of active blocks.
+            binCounts.flat<int32>().data(),           // Indices of active blocks.
             avgpool_
             );
 
@@ -191,18 +187,14 @@ public:
         // read the resulting block count back from GPU to CPU mem
         if (std::is_same<Device, GPUDevice>::value) {
             cudaMemcpy(&readBack_, binCounts.flat<int32>().data(), sizeof(int32), cudaMemcpyDeviceToHost);
-            //cout << "Readback = " << readBack_ << endl; // scaffold
             if (readBack_ == 0) {
-                cudaMemset(activeBlockIndices->flat<int32>().data(), 0, sizeof(int32)*3);
+                cudaMemset(activeBlockIndices->flat<int64>().data(), 0, sizeof(int64));
                 readBack_ = 1;
             }
         } else {
             readBack_ = binCounts.flat<int32>().data()[0];
             if (readBack_ == 0) {
-                // TODO: what's the right thing to do if if mask is completely empty?
-                activeBlockIndices->flat<int32>().data()[0] = 0;
-                activeBlockIndices->flat<int32>().data()[1] = 0;
-                activeBlockIndices->flat<int32>().data()[2] = 0;
+                activeBlockIndices->flat<int64>().data()[0] = 0;
                 readBack_ = 1;
             }
         }

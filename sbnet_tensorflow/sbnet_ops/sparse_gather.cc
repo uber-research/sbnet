@@ -53,7 +53,7 @@ REGISTER_OP("SparseGather")
     .Attr("transpose: bool = false")
     .Input("x: T")
     .Input("bin_counts: int32")
-    .Input("active_block_indices: int32")
+    .Input("active_block_indices: int64")
     .Output("y: T");
 
 // CPU specialization of actual computation.
@@ -62,14 +62,13 @@ template <typename T> struct SparseGatherFunctor<CPUDevice, T> {
     void operator()(const CPUDevice& d,
         const T* x, int N, int H, int W, int C, T* y,
         int bOffsH0, int bOffsW0, int bSzH, int bSzW, int bStrH, int bStrW,
-        int numActive, const int* activeBlockIndices, bool transpose)
+        int numActive, const int64_t* activeBlockIndices, bool transpose)
     {
         const int R = bSzH, S = bSzW;
         #pragma omp parallel for
         for (int ib = 0; ib < numActive; ib++) {
-            int biN = activeBlockIndices[ib*3+0];
-            int biH = activeBlockIndices[ib*3+1];
-            int biW = activeBlockIndices[ib*3+2];
+            int biN, biH, biW;
+            from64Bit(activeBlockIndices[ib], biN, biH, biW);
             int h0 = bOffsH0 + biH * bStrH;
             int w0 = bOffsW0 + biW * bStrW;
             for (int intraBh = 0; intraBh < R; ++intraBh) {
@@ -95,7 +94,7 @@ template <typename T> struct SparseScatterFunctor<CPUDevice, T> {
     void operator()(const CPUDevice& d,
         const T* x, int N, int H, int W, int C, T* y,
         int bOffsH0, int bOffsW0, int bSzH, int bSzW, int bStrH, int bStrW,
-        int numActive, const int* activeBlockIndices, bool add, bool transpose, bool atomic)
+        int numActive, const int64_t* activeBlockIndices, bool add, bool transpose, bool atomic)
     {
         omp_lock_t writeLock;
         omp_init_lock(&writeLock);
@@ -103,9 +102,8 @@ template <typename T> struct SparseScatterFunctor<CPUDevice, T> {
         const int R = bSzH, S = bSzW;
         #pragma omp parallel for
         for (int ib = 0; ib < numActive; ib++) {
-            int biN = activeBlockIndices[ib*3+0];
-            int biH = activeBlockIndices[ib*3+1];
-            int biW = activeBlockIndices[ib*3+2];
+            int biN, biH, biW;
+            from64Bit(activeBlockIndices[ib], biN, biH, biW);
             for (int intraBh = 0; intraBh < R; ++intraBh) {
             for (int intraBw = 0; intraBw < S; ++intraBw) {
             for (int cc = 0; cc < C; cc++) {
@@ -206,7 +204,7 @@ public:
             x.flat<T>().data(), N, H, W, C,
             y->flat<T>().data(),
             bOffsH0_, bOffsW0_, bSzH_, bSzW_, bStrH_, bStrW_,
-            bin0Count, (const int*)activeBlockIndices.flat<int>().data(),
+            bin0Count, (const int64_t*)activeBlockIndices.flat<int64>().data(),
             transpose_);
     }
 
@@ -248,7 +246,7 @@ REGISTER_OP("SparseScatterVar")
     .Attr("transpose: bool = false")
     .Input("x: T") // Dimensions: bin_counts[0]*bsize[0]*bsize[1]*C
     .Input("bin_counts: int32")
-    .Input("active_block_indices: int32")
+    .Input("active_block_indices: int64")
     .Input("ybase: Ref(T)") // ybase values will be overwritten with scatters from x
     .Output("y: Ref(T)"); // Dimensions: NHWC, scatter will write on top of current y content
 
@@ -262,7 +260,7 @@ REGISTER_OP("SparseScatter")
     .Attr("transpose: bool = false")
     .Input("x: T") // Dimensions: bin_counts[0]*bsize[0]*bsize[1]*C
     .Input("bin_counts: int32")
-    .Input("active_block_indices: int32")
+    .Input("active_block_indices: int64")
     .Input("ybase: T") // ybase values will be copied to output and overwritten with scatters from x
     .Output("y: T"); // Dimensions: NHWC, scatter will write on top of ybase content
 
@@ -343,7 +341,7 @@ public:
             x.flat<T>().data(), N, H, W, C,
             outData,
             bOffsH0_, bOffsW0_, bSzH_, bSzW_, bStrH_, bStrW_,
-            bin0Count, (const int*)activeBlockIndices.flat<int>().data(),
+            bin0Count, (const int64_t*)activeBlockIndices.flat<int64>().data(),
             doAdd_, transpose_, atomic_
         );
     }

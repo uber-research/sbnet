@@ -22,6 +22,19 @@
 
 #include "tensorflow/core/util/padding.h"
 
+// Fuses three uint16 into one int64.
+static inline int64_t to64Bit(uint16_t x, uint16_t y, uint16_t z)
+{
+    return (int64_t(x) << 32) + (int64_t(y) << 16) + int64_t(z);
+}
+
+static inline void from64Bit(int64_t val, int& n, int& h, int& w)
+{
+    w = val & 0xFFFF;
+    h = (val >> 16) & 0xFFFF;
+    n = (val >> 32) & 0xFFFF;
+}
+
 #define DIVUP(a, b) ( ((a)+(b)-1)/(b) )
 
 inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true)
