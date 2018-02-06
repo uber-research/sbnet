@@ -39,7 +39,7 @@ build/%.cu.o: %.cu
 	mkdir -p build
 	nvcc $(NVCCFLAGS) -c $< -o $@
 
-build/libsbnet.so: $(CUOBJS)
+build/libsbnet.so: $(CUOBJS) sparse_gather.cc reduce_mask.cc
 	ln -sf build/libsbnet.so
 	mkdir -p build
 	g++ -std=c++11 -g -shared \
