@@ -12,7 +12,7 @@ This repository contains
 Installation was tested under Ubuntu 14.04 and 16.04 with TensorFlow 1.2, cuDNN 6.0 and cuDNN 5.0. Note that since by default Tensorflow 1.2 comes with cuDNN 5.0, we used a custom build to upgrade to a more recent version so we could compare with PyTorch implementation using the same version of cuDNN).
 Tensorflow 1.4 currently has a build issue with custom ops, so when compiling for 1.4 you may need to follow some suggestions from [this thread](https://github.com/tensorflow/tensorflow/issues/12860).
 
-## Harware requirements
+## Hardware requirements
 
 Code was tested on and compiled for NVIDIA CUDA Pascal 6.1 architecture (Titan XP, GTX 1080Ti, GTX 1080).
 To compile for Maxwell or your preferred architecture please modify the Makefile and add the corresponding line, such as `-gencode arch=compute_52,code=sm_52` for older cards such as GTX980.
@@ -165,6 +165,11 @@ git checkout 609224df3c0e42b8a1dd4073aaa56fab805096c6
 ```
 
 The benchmark code is located in sbnet_tensorflow/benchmark_submanifold directory.
+
+
+## Other notes
+
+Current code is not tuned for performance with non-square block sizes and has specialized implementations for a specific list of block sizes. This includes square blocks of sizes 1 to 34 and a few others. To achieve maximum performance for these sizes you would need to add your custom template instantiations by modifying SIZE_TEMPLATES macro in `sparse_gather.cu`.
 
 
 ## Contributing to this repository
