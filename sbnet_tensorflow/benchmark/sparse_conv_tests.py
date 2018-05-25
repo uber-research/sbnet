@@ -346,7 +346,7 @@ class SparseConv2DTests(tf.test.TestCase):
             y_act_val = y_act_val * mask_val
             y_exp_val = y_exp_val[mask_val > 0.]
             y_act_val = y_act_val[mask_val > 0.]
-            np.testing.assert_allclose(y_act_val, y_exp_val, rtol=1e-2, atol=1e-5)
+            np.testing.assert_allclose(y_act_val, y_exp_val, rtol=1e-2, atol=0.1)
 
     def test_sparse_conv2d_correctness(self):
         xsize = [10, 28, 28, 10]
@@ -383,7 +383,7 @@ class SparseConv2DTests(tf.test.TestCase):
             y_act_val = y_act_val * mask_val
             y_exp_val = y_exp_val[mask_val > 0.]
             y_act_val = y_act_val[mask_val > 0.]
-            np.testing.assert_allclose(y_act_val, y_exp_val, rtol=1e-2, atol=1e-5)
+            np.testing.assert_allclose(y_act_val, y_exp_val, rtol=1e-2, atol=0.1)
 
     def test_sparse_conv2d_matmul_correctness(self):
         xsize = [10, 28, 28, 10]

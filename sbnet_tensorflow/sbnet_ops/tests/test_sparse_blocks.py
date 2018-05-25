@@ -171,7 +171,7 @@ class TestSparseConvolutions(unittest.TestCase):
                     if sparsity == 100:
                        tol = 1e32 # make sure at 100% sparsity we get zero blocks
                     a = tf.constant(mask, dtype=tf.float32)
-                    #print("-------------- BCNT=", BCH, BCW)
+                    print("-------------- BCNT=", BCH, BCW)
                     if 1:
                         b = sbnet_module.reduce_mask(
                             a, tf.constant([BCH, BCW], dtype=tf.int32),
@@ -239,14 +239,14 @@ class TestSparseConvolutions(unittest.TestCase):
                     result = sess.run([b, blockStack, y1000, dt])
                     if devStr == "/gpu:0":
                         print("CUDA time=", result[3])
-                    #print("BLOCKS=", result[1])
-                    #print("BLKIDS=", result[0])
 
                     result[0] = lambda: 0
                     result[0].bin_counts = py_bin_counts
                     result[0].active_block_indices = py_active_block_indices
                     result.append(x)
                     result.append(mask)
+                    #print("BLOCKS=", result[1])
+                    #print("BLKIDS=", result[0])
 
                     tidx = 1 if transpose else 0
                     results[tidx].append(result)
