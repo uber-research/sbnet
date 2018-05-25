@@ -27,12 +27,15 @@
 #include "tensorflow/core/util/cuda_kernel_helper.h"
 #include "cuda_helpers.h"
 #include "cuda_runtime.h"
+#include "op_utils.h"
 
 using namespace tensorflow;
 using std::cout;
 using std::endl;
 
 #define COMPUTE_R1(RR) ((RR) < 7 ? ((RR) == 1 ? 1 : 2) : 4)
+
+typedef Eigen::GpuDevice GPUDevice;
 
 namespace {
 struct LaunchParams {
@@ -146,6 +149,7 @@ template <typename T> struct SparseGatherFunctor<GPUDevice, T> {
         }
         #undef SIZE_TEMPLATES
         #undef CALL
+        gpuErrorCheck( cudaPeekAtLastError() );
     }
 };
 
@@ -257,13 +261,16 @@ template <typename T> struct SparseScatterFunctor<GPUDevice, T> {
         }
         #undef SIZE_TEMPLATES
         #undef CALL
+        gpuErrorCheck( cudaPeekAtLastError() );
     }
 };
 
 template<typename T> struct CopyTensorFunctor<GPUDevice, T> {
     void operator()(const GPUDevice& gpu, T* dst, const T* src, int count) {
         cudaMemcpyAsync(dst, src, sizeof(T)*count, cudaMemcpyDeviceToDevice, gpu.stream());
+        gpuErrorCheck( cudaPeekAtLastError() );
         cudaStreamSynchronize(gpu.stream());
+        gpuErrorCheck( cudaPeekAtLastError() );
     }
     const cudaStream_t* getStream(const GPUDevice& gpu) { return &gpu.stream(); }
 };

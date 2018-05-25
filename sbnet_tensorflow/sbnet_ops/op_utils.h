@@ -34,6 +34,6 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=t
     }
 }
 
-#define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
+#define gpuErrorCheck(ans) { gpuAssert((ans), __FILE__, __LINE__); }
 
 #endif

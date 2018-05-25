@@ -151,6 +151,7 @@ public:
         int maxIndices = N * bCntH_ * bCntW_;
         int activeBlockShapeArr[] = { maxIndices, 3 };
         TensorShapeUtils::MakeShape(activeBlockShapeArr, 2, &activeBlockShape);
+        // output type is known from REGISTER_OP macro
         OP_REQUIRES_OK(context, context->allocate_output(0, activeBlockShape, &activeBlockIndices));
 
         unsigned int numBins = 1;
@@ -199,7 +200,7 @@ public:
         } else {
             readBack_ = binCounts.flat<int32>().data()[0];
             if (readBack_ == 0) {
-                // TODO: what's the right thing to do if if mask is completely empty?
+                // TODO: what's the right thing to do if the mask is completely empty?
                 activeBlockIndices->flat<int16>().data()[0] = 0;
                 activeBlockIndices->flat<int16>().data()[1] = 0;
                 activeBlockIndices->flat<int16>().data()[2] = 0;

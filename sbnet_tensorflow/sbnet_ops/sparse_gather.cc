@@ -157,7 +157,7 @@ public:
         OP_REQUIRES_OK(context, context->GetAttr("boffset", &boffset));
         OP_REQUIRES(context,
             bsize.size() == 2 && bstride.size() == 2 && boffset.size() == 2,
-            errors::InvalidArgument("All block attributes must have a shape of (2,)."))
+            errors::InvalidArgument("All block attributes must have a shape of (2,)."));
         OP_REQUIRES_OK(context, context->GetAttr("transpose", &transpose_));
 
         bSzH_    = bsize[0];   bSzW_ = bsize[1];
@@ -280,7 +280,7 @@ public:
         OP_REQUIRES_OK(context, context->GetAttr("boffset", &boffset));
         OP_REQUIRES(context,
             bsize.size() == 2 && bstride.size() == 2 && boffset.size() == 2,
-            errors::InvalidArgument("All block attributes must have a shape of (2,)."))
+            errors::InvalidArgument("All block attributes must have a shape of (2,)."));
         bSzH_    = bsize[0];   bSzW_ = bsize[1];
         bStrH_   = bstride[0]; bStrW_ = bstride[1];
         bOffsH0_ = boffset[0]; bOffsW0_ = boffset[1];
@@ -384,70 +384,80 @@ REGISTER_GPU(float);
 #undef REGISTER_GPU
 #endif // GOOGLE_CUDA
 
-// CudaOpTimer implementation
-struct CuEventPair {
-    CuEventPair() { cudaEventCreate(&event0); cudaEventCreate(&event1); }
-    ~CuEventPair() { cudaEventDestroy(event0); cudaEventDestroy(event1); }
-    cudaEvent_t event0, event1;
-};
+REGISTER_OP("CudaTimerStart")
+    .Output("start_event: int64"); // a hacky way to pass cudaEvent handle to next op
+    //.SetShapeFn(shape_inference::ScalarShape);
 
-static std::map<std::string, std::unique_ptr<CuEventPair>> g_eventsMap;
-static std::mutex g_eventsMutex;
-
-REGISTER_OP("CudaOpTimer")
-    .Attr("timer_name: string")
-    .Attr("is_start: bool")
+REGISTER_OP("CudaTimerEnd")
+    .Input("start_event: int64")
     .Output("dt: float");
+    //.SetShapeFn(shape_inference::ScalarShape);
 
 template<typename Device>
-class CudaOpTimer : public OpKernel
+class CudaTimerStart : public OpKernel
 {
 public:
-    explicit CudaOpTimer(OpKernelConstruction *context) : OpKernel(context)
+    explicit CudaTimerStart(OpKernelConstruction *context) : OpKernel(context)
     {
-        g_eventsMutex.lock(); // in case multiple timers are created simultaneously
-        std::string timer_name;
-        OP_REQUIRES_OK(context, context->GetAttr("timer_name", &timer_name_));
-        OP_REQUIRES_OK(context, context->GetAttr("is_start", &is_start_));
-
-        auto find_events = g_eventsMap.find(timer_name_);
-        if (find_events == g_eventsMap.end())
-        {
-            g_eventsMap[timer_name_] = std::unique_ptr<CuEventPair>(new CuEventPair());
-            events_ = g_eventsMap.find(timer_name_)->second.get();
-        } else {
-            events_ = find_events->second.get();
-        }
-        g_eventsMutex.unlock();
+        // creating a persistent start event in constructor doesn't seem to work because destructor gets called prematurely
     }
 
     void Compute(OpKernelContext *context) override
     {
-        const cudaStream_t *stream = (cudaStream_t*)CopyTensorFunctor<Device, float>().getStream(context->eigen_device<Device>());
-        float time = -1.0f;
-        if (stream) {
-            if (is_start_)
-            {
-                cudaEventRecord(events_->event0, *stream);
-            } else {
-                cudaEventRecord(events_->event1, *stream);
-                cudaEventSynchronize(events_->event1);
-                cudaEventElapsedTime(&time, events_->event0, events_->event1);
-            }
-        }
+        const cudaStream_t *stream = (cudaStream_t*)CopyTensorFunctor<Device, float>().getStream(context->eigen_device<Device>()); 
+        //printf("recording start event=%x\n", reinterpret_cast<int64>(event));
 
         Tensor* output = nullptr;
         AllocatorAttributes hostAttr; hostAttr.set_on_host(true);
         OP_REQUIRES_OK(context, context->allocate_output(0, TensorShape({}), &output, hostAttr));
-        output->scalar<float>()() = time;
+
+        cudaEvent_t event;
+        gpuErrorCheck(cudaEventCreate(&event));
+        gpuErrorCheck(cudaEventRecord(event, stream ? *stream : 0));
+        output->scalar<int64>()() = reinterpret_cast<int64>(event);
     }
-    bool         is_start_ = true;
-    CuEventPair* events_   = nullptr;
-    std::string  timer_name_;
+};
+
+template<typename Device>
+class CudaTimerEnd : public OpKernel
+{
+public:
+    explicit CudaTimerEnd(OpKernelConstruction *context) : OpKernel(context)
+    {
+        gpuErrorCheck(cudaEventCreate(&event_));
+    }
+
+    virtual ~CudaTimerEnd() override
+    {
+        //printf("Destroying end event\n");
+        gpuErrorCheck(cudaEventDestroy(event_));
+    }
+
+    void Compute(OpKernelContext *context) override
+    {
+        const cudaStream_t *stream = (cudaStream_t*)CopyTensorFunctor<Device, float>().getStream(context->eigen_device<Device>()); 
+        gpuErrorCheck(cudaEventRecord(event_, stream ? *stream : 0));
+        gpuErrorCheck(cudaEventSynchronize(event_));
+
+        Tensor* output = nullptr;
+        AllocatorAttributes hostAttr; hostAttr.set_on_host(true);
+        OP_REQUIRES_OK(context, context->allocate_output(0, TensorShape({}), &output, hostAttr));
+        cudaEvent_t startEvent = reinterpret_cast<cudaEvent_t>(context->input(0).scalar<int64>()());
+        //printf("startEvent handle=%x\n", startEvent);
+        float time;
+        gpuErrorCheck(cudaEventElapsedTime(&time, startEvent, event_)); // ms
+        output->scalar<float>()() = time;
+        //printf("TIME=%.2f\n", time);
+        gpuErrorCheck(cudaEventDestroy(startEvent));
+    }
+private:
+    cudaEvent_t event_;
 };
 
 #ifdef GOOGLE_CUDA
-REGISTER_KERNEL_BUILDER(Name("CudaOpTimer").Device(DEVICE_GPU).HostMemory("dt"), CudaOpTimer<GPUDevice>);
+REGISTER_KERNEL_BUILDER(Name("CudaTimerStart").Device(DEVICE_GPU).HostMemory("start_event"), CudaTimerStart<GPUDevice>);
+REGISTER_KERNEL_BUILDER(Name("CudaTimerEnd").Device(DEVICE_GPU).HostMemory("dt").HostMemory("start_event"), CudaTimerEnd<GPUDevice>);
 #endif
-REGISTER_KERNEL_BUILDER(Name("CudaOpTimer").Device(DEVICE_CPU).HostMemory("dt"), CudaOpTimer<CPUDevice>);
+REGISTER_KERNEL_BUILDER(Name("CudaTimerStart").Device(DEVICE_CPU).HostMemory("start_event"), CudaTimerStart<CPUDevice>);
+REGISTER_KERNEL_BUILDER(Name("CudaTimerEnd").Device(DEVICE_CPU).HostMemory("dt").HostMemory("start_event"), CudaTimerEnd<CPUDevice>);
 

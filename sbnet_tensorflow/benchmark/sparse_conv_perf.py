@@ -118,7 +118,7 @@ def _build_res_block(mask, config, x_init, ind_init, bin_init, n_repeat=N_REPEAT
     ys = []
     if config.is_sparse:
         with tf.control_dependencies([mask]):
-            dt0 = cuda_timer_start_op("my_timer")
+            dt0 = cuda_timer_start_op()
             block_params = calc_block_params_res_block(config.xsize, config.bsize, ksize_list,
                                                        config.strides, config.padding)
             ind = convert_mask_to_indices_custom(mask, block_params, config.tol, config.avgpool)
@@ -135,7 +135,7 @@ def _build_res_block(mask, config, x_init, ind_init, bin_init, n_repeat=N_REPEAT
         for _ in six.moves.xrange(n_repeat):
             x_ = tf.Variable(tf.transpose(x_init, [0, 3, 1, 2]))    # NCHW
             with tf.control_dependencies([x_]):
-                dt0 = cuda_timer_start_op("my_timer")
+                dt0 = cuda_timer_start_op()
             with tf.control_dependencies(ys + [dt0]):
                 with tf.variable_scope('dense_{}'.format(_)):
                     y_ = res_block_bottleneck(
@@ -148,8 +148,8 @@ def _build_res_block(mask, config, x_init, ind_init, bin_init, n_repeat=N_REPEAT
                         no_activation=False)
                 xs.append(x_)
                 ys.append(y_)
-    with tf.control_dependencies(ys):
-        dt = cuda_timer_end_op("my_timer")
+    with tf.control_dependencies(ys+[dt0]):
+        dt = cuda_timer_end_op(dt0)
         with tf.control_dependencies([dt]):
             y = tf.no_op()
     return y, ind, dt
@@ -165,7 +165,7 @@ def _build_conv(mask, config, x_init, ind_init, bin_init, n_repeat=N_REPEAT):
     ys = []
     if config.is_sparse:
         with tf.control_dependencies([mask]):
-            dt0 = cuda_timer_start_op("my_timer")
+            dt0 = cuda_timer_start_op()
             block_params = calc_block_params(config.xsize, config.bsize, config.ksize,
                                              config.strides, config.padding)
             ind = convert_mask_to_indices_custom(mask, block_params, config.tol, config.avgpool)
@@ -181,13 +181,13 @@ def _build_conv(mask, config, x_init, ind_init, bin_init, n_repeat=N_REPEAT):
         for _ in six.moves.xrange(n_repeat):
             x_ = tf.Variable(tf.transpose(x_init, [0, 3, 1, 2]))    # NCHW
             with tf.control_dependencies([x_]):
-                dt0 = cuda_timer_start_op("my_timer")
+                dt0 = cuda_timer_start_op()
             with tf.control_dependencies(ys + [dt0]):
                 y_ = tf.nn.conv2d(x_, w, config.strides, config.padding, data_format='NCHW')
                 xs.append(x_)
                 ys.append(y_)
-    with tf.control_dependencies(ys):
-        dt = cuda_timer_end_op("my_timer")
+    with tf.control_dependencies(ys+[dt0]):
+        dt = cuda_timer_end_op(dt0)
         with tf.control_dependencies([dt]):
             y = tf.no_op()
     return y, ind, dt

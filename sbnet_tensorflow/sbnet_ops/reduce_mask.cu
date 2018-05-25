@@ -27,10 +27,13 @@
 #include "reduce_mask.cu.h"
 #include "tensorflow/core/util/cuda_kernel_helper.h"
 #include "cuda_helpers.h"
+#include "op_utils.h"
 
 using namespace tensorflow;
 using std::cout;
 using std::endl;
+
+typedef Eigen::GpuDevice GPUDevice;
 
 // Define the GPU implementation that launches the CUDA kernel.
 template <typename T> struct ReduceMaskFunctor<GPUDevice, T> {
@@ -55,9 +58,17 @@ template <typename T> struct ReduceMaskFunctor<GPUDevice, T> {
         bool avgPool                    // true for avg pooling, false for max pooling
         )
     {
+        gpuErrorCheck( cudaPeekAtLastError() );
+
         // TODO
         // We can do better here in terms of grid/block partitioning but this is not currently a perf bottleneck
-        zeroBlockCounters<<<24, 1024, 0, d.stream()>>>(numBins, (unsigned int*) binCounts);
+        //printf("++++++++++++++++++++++++++++++ Launching ZBC, binCounts=%x\n", binCounts);
+        cudaStream_t stream = d.stream();
+        gpuErrorCheck( cudaPeekAtLastError() );
+
+        zeroBlockCounters<<<1, 32, 0, stream>>>(numBins, (unsigned int*) binCounts);
+        gpuErrorCheck( cudaPeekAtLastError() );
+
         dim3 block(std::min(DIVUP(bSzH*bSzW, 32)*32, 1024), 1, 1);
         dim3 grid(bCntW, bCntH, N);
         reduceMask<<<grid, block, 0, d.stream()>>>(mask, N, H, W, // C is assumed to be 1
@@ -72,6 +83,8 @@ template <typename T> struct ReduceMaskFunctor<GPUDevice, T> {
             bStrH, bStrW, // block strides
             bCntH, bCntW, // block counts
             avgPool);
+
+        gpuErrorCheck( cudaPeekAtLastError() );
     }
 };
 

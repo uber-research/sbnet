@@ -133,7 +133,7 @@ def generateInputs(inputSize, RS, UV, BOFFS, N):
     return NN, HH, WW, CC, RR, SS, UU, VV, BCH, BCW, numBins, mask, x
 
 
-config = tf.ConfigProto(log_device_placement=False)
+config = tf.ConfigProto(log_device_placement=False, allow_soft_placement=False)
 config.graph_options.optimizer_options.opt_level = -1
 
 
@@ -171,25 +171,31 @@ class TestSparseConvolutions(unittest.TestCase):
                     if sparsity == 100:
                        tol = 1e32 # make sure at 100% sparsity we get zero blocks
                     a = tf.constant(mask, dtype=tf.float32)
-                    print("-------------- BCNT=", BCH, BCW)
-                    b = sbnet_module.reduce_mask(
-                        a, tf.constant([BCH, BCW], dtype=tf.int32),
-                        bsize=[RR, SS],
-                        boffset=BOFFS,
-                        bstride=[UU, VV],
-                        tol=tol,
-                        avgpool=avgpool)
+                    #print("-------------- BCNT=", BCH, BCW)
+                    if 1:
+                        b = sbnet_module.reduce_mask(
+                            a, tf.constant([BCH, BCW], dtype=tf.int32),
+                            bsize=[RR, SS],
+                            boffset=BOFFS,
+                            bstride=[UU, VV],
+                            tol=tol,
+                            avgpool=avgpool)
 
-                    # decouple indeterminstic portion into a separate subgraph for grad checker consistency
-                    py_bin_counts, py_active_block_indices = sess.run(
-                        [b.bin_counts, b.active_block_indices])
+                        # decouple indeterminstic portion into a separate subgraph for grad checker consistency
+                        py_bin_counts, py_active_block_indices = sess.run(
+                            [b.bin_counts, b.active_block_indices])
+                        #print ">>>>>>>>>>>>>>>>>>>> devStr=", devStr
+                        #print "PY_BINC=", py_bin_counts
+                        #print "PY_ABI=", py_active_block_indices
+                        #print "++++ i=", i
 
                     tf_bin_counts = tf.constant(py_bin_counts)
                     tf_active_block_indices = tf.constant(py_active_block_indices)
                     #bin_counts = tfx_print(b.bin_counts, "bin_counts")
 
                     tf_x = tf.convert_to_tensor(x, tf.float32)
-                    dt0 = sbnet_module.cuda_op_timer(timer_name="my_timer", is_start=True)
+                    with tf.control_dependencies([tf_x]):
+                        dt0 = sbnet_module.cuda_timer_start()
                     with tf.control_dependencies([dt0]):
                         tf_x = tf.identity(tf_x)
                     blockStack = sbnet_module.sparse_gather(
@@ -225,12 +231,13 @@ class TestSparseConvolutions(unittest.TestCase):
                             add=do_add,
                             atomic=use_atomics,
                             transpose=transpose)
-                    dt = sbnet_module.cuda_op_timer(timer_name="my_timer", is_start=False)
+                    with tf.control_dependencies([y1000]):
+                        dt = sbnet_module.cuda_timer_end(dt0)
                     with tf.control_dependencies([dt]):
                         y1000 = tf.identity(y1000)
 
                     result = sess.run([b, blockStack, y1000, dt])
-                    if result[3] != -1.0:
+                    if devStr == "/gpu:0":
                         print("CUDA time=", result[3])
                     #print("BLOCKS=", result[1])
                     #print("BLKIDS=", result[0])
@@ -307,6 +314,10 @@ class TestSparseConvolutions(unittest.TestCase):
                 # transposed is NCHW, convert to NHWC via [0, 2, 3, 1]
                 self.assertTrue(np.array_equal(gatheredCpuUT, np.transpose(gatheredCpuT, [0, 2, 3, 1])))
                 self.assertTrue(np.array_equal(gatheredCpuUT, np.transpose(gatheredGpuT, [0, 2, 3, 1])))
+
+            #print("GCPU=", gatheredCpu)
+            #print("GGPU=", gatheredGpu)
+
             gatherEq = np.array_equal(gatheredCpu, gatheredGpu)
             self.assertTrue(gatherEq)
 

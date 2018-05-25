@@ -512,13 +512,13 @@ def sparse_conv2d(x, w, blk_indices, strides, padding):
         tf.equal(tf.size(blk_indices_), 0), lambda: tf.zeros(out_shape, dtype=x.dtype),
         _conv_nonzero)
 
+# returns an int64 start timer handle that should be passed to cuda_timer_end_op
+def cuda_timer_start_op():
+    return sbnet_module.cuda_timer_start()
 
-def cuda_timer_start_op(name):
-    return sbnet_module.cuda_op_timer(timer_name=name, is_start=True)
-
-
-def cuda_timer_end_op(name):
-    return sbnet_module.cuda_op_timer(timer_name=name, is_start=False)
+# returns a float
+def cuda_timer_end_op(start_timer):
+    return sbnet_module.cuda_timer_end(start_timer)
 
 
 def sparse_conv2d_custom(x,

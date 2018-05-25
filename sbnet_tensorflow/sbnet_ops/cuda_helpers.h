@@ -83,3 +83,4 @@ __device__ struct XYZ {
         threadIdx.x, threadIdx.y, threadIdx.z, blockIdx.x, blockIdx.y, blockIdx.z)
 
 #endif
+
