@@ -1,6 +1,7 @@
 # Sparse Blocks Network (SBNet)
 
-This repository releases code for our paper [*SBNet: Sparse Blocks Network for Fast Inference*](https://arxiv.org/abs/1801.02108). Please refer to our [blog post](https://eng.uber.com/sbnet) for more context. 
+This repository releases code for our paper [*SBNet: Sparse Blocks Network for Fast Inference*](https://arxiv.org/abs/1801.02108). Please refer to our [blog post](https://eng.uber.com/sbnet) for more context.
+Note that benchmarking in the paper was performed with an older version of this repo using TensorFlow 1.2, cuDNN 6.1 and commit cf8ea06.
 
 This repository contains 
 1. a TensorFlow custom operations library that implements SBNet,
@@ -9,8 +10,7 @@ This repository contains
 
 ## Prerequisites
 
-Installation was tested under Ubuntu 14.04 and 16.04 with TensorFlow 1.2, cuDNN 6.0 and cuDNN 5.0. Note that since by default Tensorflow 1.2 comes with cuDNN 5.0, we used a custom build to upgrade to a more recent version so we could compare with PyTorch implementation using the same version of cuDNN).
-Tensorflow 1.4 currently has a build issue with custom ops, so when compiling for 1.4 you may need to follow some suggestions from [this thread](https://github.com/tensorflow/tensorflow/issues/12860).
+Installation was tested under Ubuntu 14.04 and 16.04 with TensorFlow 1.8, CUDA 9.0 and cuDNN 7.1.
 
 ## Hardware requirements
 
