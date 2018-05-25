@@ -385,13 +385,11 @@ REGISTER_GPU(float);
 #endif // GOOGLE_CUDA
 
 REGISTER_OP("CudaTimerStart")
-    .Output("start_event: int64"); // a hacky way to pass cudaEvent handle to next op
-    //.SetShapeFn(shape_inference::ScalarShape);
+    .Output("start_event: int64"); // a somewhat hacky way to pass cudaEvent_t handle to the CudaTimerEnd op
 
 REGISTER_OP("CudaTimerEnd")
     .Input("start_event: int64")
     .Output("dt: float");
-    //.SetShapeFn(shape_inference::ScalarShape);
 
 template<typename Device>
 class CudaTimerStart : public OpKernel
@@ -404,8 +402,10 @@ public:
 
     void Compute(OpKernelContext *context) override
     {
-        const cudaStream_t *stream = (cudaStream_t*)CopyTensorFunctor<Device, float>().getStream(context->eigen_device<Device>()); 
+        //const cudaStream_t *stream = (cudaStream_t*)CopyTensorFunctor<Device, float>().getStream(context->eigen_device<Device>()); 
         //printf("recording start event=%x\n", reinterpret_cast<int64>(event));
+        //printf("start stream=%d\n", stream ? *stream : 0);
+        // AP: don't use streams because TF can split subgraphs so we want to sync on all streams
 
         Tensor* output = nullptr;
         AllocatorAttributes hostAttr; hostAttr.set_on_host(true);
@@ -413,7 +413,8 @@ public:
 
         cudaEvent_t event;
         gpuErrorCheck(cudaEventCreate(&event));
-        gpuErrorCheck(cudaEventRecord(event, stream ? *stream : 0));
+        //gpuErrorCheck(cudaEventRecord(event, stream ? *stream : 0));
+        gpuErrorCheck(cudaEventRecord(event));
         output->scalar<int64>()() = reinterpret_cast<int64>(event);
     }
 };
@@ -435,8 +436,10 @@ public:
 
     void Compute(OpKernelContext *context) override
     {
-        const cudaStream_t *stream = (cudaStream_t*)CopyTensorFunctor<Device, float>().getStream(context->eigen_device<Device>()); 
-        gpuErrorCheck(cudaEventRecord(event_, stream ? *stream : 0));
+        //const cudaStream_t *stream = (cudaStream_t*)CopyTensorFunctor<Device, float>().getStream(context->eigen_device<Device>()); 
+        //printf("end stream=%d\n", stream ? *stream : 0);
+        // AP: don't use streams because TF can split subgraphs so we want to sync on all streams
+        gpuErrorCheck(cudaEventRecord(event_));//, stream ? *stream : 0));
         gpuErrorCheck(cudaEventSynchronize(event_));
 
         Tensor* output = nullptr;
@@ -458,6 +461,7 @@ private:
 REGISTER_KERNEL_BUILDER(Name("CudaTimerStart").Device(DEVICE_GPU).HostMemory("start_event"), CudaTimerStart<GPUDevice>);
 REGISTER_KERNEL_BUILDER(Name("CudaTimerEnd").Device(DEVICE_GPU).HostMemory("dt").HostMemory("start_event"), CudaTimerEnd<GPUDevice>);
 #endif
-REGISTER_KERNEL_BUILDER(Name("CudaTimerStart").Device(DEVICE_CPU).HostMemory("start_event"), CudaTimerStart<CPUDevice>);
-REGISTER_KERNEL_BUILDER(Name("CudaTimerEnd").Device(DEVICE_CPU).HostMemory("dt").HostMemory("start_event"), CudaTimerEnd<CPUDevice>);
+// AP: do not register the CPU version intentionally
+//REGISTER_KERNEL_BUILDER(Name("CudaTimerStart").Device(DEVICE_CPU).HostMemory("start_event"), CudaTimerStart<CPUDevice>);
+//REGISTER_KERNEL_BUILDER(Name("CudaTimerEnd").Device(DEVICE_CPU).HostMemory("dt").HostMemory("start_event"), CudaTimerEnd<CPUDevice>);
 

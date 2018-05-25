@@ -117,41 +117,46 @@ def _build_res_block(mask, config, x_init, ind_init, bin_init, n_repeat=N_REPEAT
     xs = []
     ys = []
     if config.is_sparse:
-        with tf.control_dependencies([mask]):
+        # pre-create xs to exclude from timing, need independent variables to disable TF identical subgraph folding
+        for i in six.moves.xrange(n_repeat):
+            with tf.variable_scope('sparse_{}'.format(i)):
+                xs.append( tf.Variable(x_init) )
+        with tf.control_dependencies(xs):
             dt0 = cuda_timer_start_op()
+        with tf.control_dependencies([mask, dt0]):
             block_params = calc_block_params_res_block(config.xsize, config.bsize, ksize_list,
                                                        config.strides, config.padding)
             ind = convert_mask_to_indices_custom(mask, block_params, config.tol, config.avgpool)
-        for _ in six.moves.xrange(n_repeat):
-            x_ = tf.Variable(x_init)
+        for i in six.moves.xrange(n_repeat):
             with tf.control_dependencies(ys + [dt0]):
-                with tf.variable_scope('sparse_{}'.format(_)):
-                    y_ = _sparse_res_block_with_mask(x_, ksize_list, block_params, config.strides,
+                with tf.variable_scope('sparse_{}'.format(i)):
+                    y_ = _sparse_res_block_with_mask(xs[i], ksize_list, block_params, config.strides,
                                                      ind_init, bin_init)
-                xs.append(x_)
                 ys.append(y_)
     else:
         ind = None
-        for _ in six.moves.xrange(n_repeat):
-            x_ = tf.Variable(tf.transpose(x_init, [0, 3, 1, 2]))    # NCHW
-            with tf.control_dependencies([x_]):
-                dt0 = cuda_timer_start_op()
+        # pre-create xs to exclude from timing, need independent variables to disable TF identical subgraph folding
+        for i in six.moves.xrange(n_repeat):
+            with tf.variable_scope('dense_{}'.format(i)):
+                xs.append(tf.Variable(tf.transpose(x_init, [0, 3, 1, 2])))    # NCHW
+        with tf.control_dependencies(xs):
+            dt0 = cuda_timer_start_op()
+        for i in six.moves.xrange(n_repeat):
             with tf.control_dependencies(ys + [dt0]):
-                with tf.variable_scope('dense_{}'.format(_)):
+                with tf.variable_scope('dense_{}'.format(i)):
                     y_ = res_block_bottleneck(
-                        x_,
+                        xs[i],
                         ksize_list,
                         config.strides,
                         True,
                         data_format='NCHW',
                         w_project=None,
                         no_activation=False)
-                xs.append(x_)
                 ys.append(y_)
     with tf.control_dependencies(ys+[dt0]):
         dt = cuda_timer_end_op(dt0)
-        with tf.control_dependencies([dt]):
-            y = tf.no_op()
+        with tf.control_dependencies(ys+[dt]):
+            y = tf.concat(ys, 0)
     return y, ind, dt
 
 
@@ -164,32 +169,33 @@ def _build_conv(mask, config, x_init, ind_init, bin_init, n_repeat=N_REPEAT):
     xs = []
     ys = []
     if config.is_sparse:
-        with tf.control_dependencies([mask]):
+        for i in six.moves.xrange(n_repeat):
+            xs.append( tf.Variable(x_init) )
+        with tf.control_dependencies(xs):
             dt0 = cuda_timer_start_op()
+        with tf.control_dependencies([mask, dt0]):
             block_params = calc_block_params(config.xsize, config.bsize, config.ksize,
                                              config.strides, config.padding)
             ind = convert_mask_to_indices_custom(mask, block_params, config.tol, config.avgpool)
-        for _ in six.moves.xrange(n_repeat):
-            x_ = tf.Variable(x_init)    # no need to transpose here since gather/scatter transpose
+        for i in six.moves.xrange(n_repeat):
             with tf.control_dependencies(ys + [dt0]):
-                y_ = _sparse_conv2d_custom_with_mask(x_, w, block_params, config.strides, ind_init,
+                y_ = _sparse_conv2d_custom_with_mask(xs[i], w, block_params, config.strides, ind_init,
                                                      bin_init)
-                xs.append(x_)
                 ys.append(y_)
     else:
         ind = None
-        for _ in six.moves.xrange(n_repeat):
-            x_ = tf.Variable(tf.transpose(x_init, [0, 3, 1, 2]))    # NCHW
-            with tf.control_dependencies([x_]):
-                dt0 = cuda_timer_start_op()
+        for i in six.moves.xrange(n_repeat):
+            xs.append(tf.Variable(tf.transpose(x_init, [0, 3, 1, 2])))    # NCHW
+        with tf.control_dependencies(xs):
+            dt0 = cuda_timer_start_op()
+        for i in six.moves.xrange(n_repeat):
             with tf.control_dependencies(ys + [dt0]):
-                y_ = tf.nn.conv2d(x_, w, config.strides, config.padding, data_format='NCHW')
-                xs.append(x_)
+                y_ = tf.nn.conv2d(xs[i], w, config.strides, config.padding, data_format='NCHW')
                 ys.append(y_)
     with tf.control_dependencies(ys+[dt0]):
         dt = cuda_timer_end_op(dt0)
-        with tf.control_dependencies([dt]):
-            y = tf.no_op()
+        with tf.control_dependencies(ys+[dt]):
+            y = tf.concat(ys, 0)
     return y, ind, dt
 
 
