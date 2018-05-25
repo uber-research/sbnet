@@ -14,8 +14,8 @@ Tensorflow 1.4 currently has a build issue with custom ops, so when compiling fo
 
 ## Hardware requirements
 
-Code was tested on and compiled for NVIDIA CUDA Pascal 6.1 architecture (Titan XP, GTX 1080Ti, GTX 1080).
-To compile for Maxwell or your preferred architecture please modify the Makefile and add the corresponding line, such as `-gencode arch=compute_52,code=sm_52` for older cards such as GTX980.
+Code was tested on and compiled for NVIDIA CUDA 6.1, 6.0, 5.2 and 7.0 architectures (Titan XP, GTX 1080Ti, GTX 1080, P100, V100, TitanV, and most Maxwell cards).
+To compile for an older architecture please modify the Makefile and add the corresponding line, such as `-gencode arch=compute_50,code=sm_50` for older cards such as laptop Maxwell.
 Please refer to [CUDA Wikipedia](https://en.wikipedia.org/wiki/CUDA) page to lookup the architecture code for your graphics card.
 
 
