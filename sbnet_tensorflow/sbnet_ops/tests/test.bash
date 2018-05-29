@@ -1,1 +1,3 @@
 python test_sparse_blocks.py
+#python test_sparse_blocks.py TestSparseConvolutions.testAvgPoolingWithHoles
+#python test_sparse_blocks.py TestSparseConvolutions.testZeroBlockCount

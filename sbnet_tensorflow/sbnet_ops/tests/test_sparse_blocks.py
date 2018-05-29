@@ -161,6 +161,7 @@ class TestSparseConvolutions(unittest.TestCase):
         offset = 10.0
         for transpose in [False, True]:
             for devStr in ["/gpu:0", "/cpu:0"]:
+                isGpu = (devStr == "/gpu:0")
                 tf.reset_default_graph()
                 with tf.Session(config=config) as sess, tf.device(devStr):
                     if test_var:
@@ -172,12 +173,16 @@ class TestSparseConvolutions(unittest.TestCase):
                        tol = 1e32 # make sure at 100% sparsity we get zero blocks
                     a = tf.constant(mask, dtype=tf.float32)
                     print("-------------- BCNT=", BCH, BCW)
+                    print("-------------- BSZ=", RR, SS)
+                    print("-------------- BSTR=", UU, VV)
+                    print("-------------- BOFFS=", BOFFS[0], BOFFS[1])
                     if 1:
                         b = sbnet_module.reduce_mask(
-                            a, tf.constant([BCH, BCW], dtype=tf.int32),
-                            bsize=[RR, SS],
-                            boffset=BOFFS,
-                            bstride=[UU, VV],
+                            mask=a,
+                            dynamic_bcount=tf.constant([BCH, BCW], dtype=tf.int32),
+                            dynamic_bsize=tf.constant([int(RR), int(SS)], dtype=tf.int32),
+                            dynamic_bstride=tf.constant([int(UU), int(VV)], dtype=tf.int32),
+                            dynamic_boffset=tf.constant([int(BOFFS[0]), int(BOFFS[1])], dtype=tf.int32),
                             tol=tol,
                             avgpool=avgpool)
 
@@ -194,10 +199,11 @@ class TestSparseConvolutions(unittest.TestCase):
                     #bin_counts = tfx_print(b.bin_counts, "bin_counts")
 
                     tf_x = tf.convert_to_tensor(x, tf.float32)
-                    with tf.control_dependencies([tf_x]):
-                        dt0 = sbnet_module.cuda_timer_start()
-                    with tf.control_dependencies([dt0]):
-                        tf_x = tf.identity(tf_x)
+                    if isGpu:
+                        with tf.control_dependencies([tf_x]):
+                            dt0 = sbnet_module.cuda_timer_start()
+                        with tf.control_dependencies([dt0]):
+                            tf_x = tf.identity(tf_x)
                     blockStack = sbnet_module.sparse_gather(
                         tf_x,
                         tf_bin_counts,
@@ -231,14 +237,18 @@ class TestSparseConvolutions(unittest.TestCase):
                             add=do_add,
                             atomic=use_atomics,
                             transpose=transpose)
-                    with tf.control_dependencies([y1000]):
-                        dt = sbnet_module.cuda_timer_end(dt0)
-                    with tf.control_dependencies([dt]):
-                        y1000 = tf.identity(y1000)
+                    if isGpu:
+                        with tf.control_dependencies([y1000]):
+                            dt = sbnet_module.cuda_timer_end(dt0)
+                        with tf.control_dependencies([dt]):
+                            y1000 = tf.identity(y1000)
 
-                    result = sess.run([b, blockStack, y1000, dt])
-                    if devStr == "/gpu:0":
+                    if isGpu:
+                        result = sess.run([b, blockStack, y1000, dt])
                         print("CUDA time=", result[3])
+                    else:
+                        dt = tf.constant(-1.0, dtype=tf.float32)
+                        result = sess.run([b, blockStack, y1000, dt])
 
                     result[0] = lambda: 0
                     result[0].bin_counts = py_bin_counts
