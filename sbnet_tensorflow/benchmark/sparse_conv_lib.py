@@ -75,6 +75,7 @@ sbnet_module = tf.load_op_library('../sbnet_ops/libsbnet.so')
 
 BlockParams = namedtuple('BlockParams', ['bsize', 'bsize_out', 'boffset', 'bcount', 'bstrides'])
 
+
 # Gradients registration.
 @ops.RegisterGradient("SparseGather")
 def _sparse_gather_grad(op, grad):
@@ -120,7 +121,12 @@ def _sparse_scatter_grad(op, grad):
     doAdd = op.get_attr("add")
 
     dout_dx = sbnet_module.sparse_gather(
-        grad, binCounts, activeBlockIndices, dynamic_bsize=bsize, dynamic_bstride=bstride, dynamic_boffset=boffset)
+        grad,
+        binCounts,
+        activeBlockIndices,
+        dynamic_bsize=bsize,
+        dynamic_bstride=bstride,
+        dynamic_boffset=boffset)
 
     # return a list of gradients of output with respect to each input
     if not doAdd:
@@ -334,11 +340,11 @@ def convert_mask_to_block_indices(mask, bsize, ksize, strides, padding, tol):
     return blk_indices
 
 
-def calc_block_params(in_size, bsize, ksize, strides, padding, static=True):
+def calc_block_params(in_size, bsize, ksize, strides, padding):
     """
     Calculates block parameters for a single convolution layer.
 
-    :param in_size:  [list]     List of 4 int. Size of the convolution input.
+    :param in_size:  [list]     List of 4 int, or a Tensor of size 4. Size of the convolution input.
     :param bsize:    [list]     List of 4 int. Size of blocks, or downsample ratio.
     :param ksize:    [list]     List of 4 int. Sparse convolution kernel size.
     :param strides:  [list]     List of 4 int. Sparse convolution stride size.
@@ -354,6 +360,7 @@ def calc_block_params(in_size, bsize, ksize, strides, padding, static=True):
         bcount:
         bstrides:
     """
+    static = not (type(in_size) == tf.Tensor)
 
     assert ((bsize[1] - ksize[0]) % strides[1] == 0)
     assert ((bsize[2] - ksize[1]) % strides[2] == 0)
@@ -378,21 +385,14 @@ def calc_block_params(in_size, bsize, ksize, strides, padding, static=True):
     bsize = bsize[1:3]
     bstrides = bstrides[1:3]
     bsize_out = bsize_out[1:3]
-    # print('h w', h, w)
-    # print('bcount', bcount)
-    # print('bsize', bsize)
-    # print('bsize_out', bsize_out)
-    # print('boffset', boffset)
-    # print('bstrides', bstrides)
-    # print(pad_h0, pad_w0, boffset)
     if static:
         assert (pad_h0 == -boffset[0])
         assert (pad_w0 == -boffset[1])
-    for i, siz in zip([0, 1], [h, w]):
-        # make sure last block is inside
-        err_msg = 'Making sure last block is inside boffset {} bstrides {} bcount {} size {}'.format(
-            boffset[i], bstrides[i], bcount[i], siz)
-        assert (boffset[i] + bstrides[i] * (bcount[i] - 1) < siz), err_msg
+        for i, siz in zip([0, 1], [h, w]):
+            # make sure last block is inside
+            err_msg = 'Making sure last block is inside boffset {} bstrides {} bcount {} size {}'.format(
+                boffset[i], bstrides[i], bcount[i], siz)
+            assert (boffset[i] + bstrides[i] * (bcount[i] - 1) < siz), err_msg
     return BlockParams(
         bsize=bsize, bsize_out=bsize_out, boffset=boffset, bcount=bcount, bstrides=bstrides)
 
@@ -433,11 +433,28 @@ def convert_mask_to_indices_custom(mask, block_params, tol, avgpool=False):
         bin_counts:           [Tensor]. Number of active locations for each bin.
         active_block_indices: [Tensor]. [M]. Center locations of M rectangles. Dtype int64.
     """
+
+    def to_tensor(a, dtype):
+        if type(a) == tf.Tensor:
+            if a.dtype != dtype:
+                return tf.cast(a, dtype)
+            else:
+                return a
+        elif type(a) == list:
+            if type(a[0]) == tf.Tensor:
+                return tf.stack(a, 0)
+            else:
+                return tf.constant(a, dtype)
+        else:
+            print(type(a))
+            return tf.constant(a, dtype)
+
     return sbnet_module.reduce_mask(
-        mask, block_params.bcount,
-        dynamic_bsize=tf.constant(block_params.bsize, tf.int32),
-        dynamic_bstride=tf.constant(block_params.bstrides, tf.int32),
-        dynamic_boffset=tf.constant(block_params.boffset, tf.int32),
+        mask,
+        block_params.bcount,
+        dynamic_bsize=to_tensor(block_params.bsize, tf.int32),
+        dynamic_bstride=to_tensor(block_params.bstrides, tf.int32),
+        dynamic_boffset=to_tensor(block_params.boffset, tf.int32),
         avgpool=avgpool,
         tol=tol)
 
@@ -505,9 +522,11 @@ def sparse_conv2d(x, w, blk_indices, strides, padding):
         tf.equal(tf.size(blk_indices_), 0), lambda: tf.zeros(out_shape, dtype=x.dtype),
         _conv_nonzero)
 
+
 # returns an int64 start timer handle that should be passed to cuda_timer_end_op
 def cuda_timer_start_op():
     return sbnet_module.cuda_timer_start()
+
 
 # returns a float
 def cuda_timer_end_op(start_timer):

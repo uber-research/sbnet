@@ -185,15 +185,20 @@ class SparseResBlockGradientTests(tf.test.TestCase):
                                         bsize,
                                         strides,
                                         padding,
-                                        data_format='NHWC'):
+                                        data_format='NHWC',
+                                        dynamic_size=False):
         with tf.Graph().as_default() as g:
             x = tf.constant(xval)
             mask = tf.constant(maskval)
             ch_in = xval.shape[3]
             ch_out = xval.shape[3] // 4
             ksize_list = [[1, 1, ch_in, ch_out], [3, 3, ch_out, ch_out], [1, 1, ch_out, ch_in]]
-            blk_params = calc_block_params_res_block(xval.shape, bsize, ksize_list, strides,
-                                                     padding)
+            if dynamic_size:
+                blk_params = calc_block_params_res_block(
+                    tf.shape(xval), bsize, ksize_list, strides, padding)
+            else:
+                blk_params = calc_block_params_res_block(
+                    xval.shape, bsize, ksize_list, strides, padding)
             ind = convert_mask_to_indices_custom(mask, blk_params, 0.)
             ReduceMask = namedtuple('ReduceMask', ['active_block_indices', 'bin_counts'])
             ind.active_block_indices.set_shape([27, 3])
@@ -263,8 +268,9 @@ class SparseResBlockGradientTests(tf.test.TestCase):
         mask = (mask > 0.5).astype(np.float32)
         xval = rnd.uniform(-0.1, 0.1, [mask.shape[0], mask.shape[1], mask.shape[2], ksize[2]
                                        ]).astype(np.float32) + 1.0
-        self._test_sparse_resblock_gradients(
-            xval, mask, bsize, strides, padding, data_format='NHWC')
+        for dynamic_size in [True, False]:
+            self._test_sparse_resblock_gradients(
+                xval, mask, bsize, strides, padding, data_format='NHWC', dynamic_size=dynamic_size)
 
 
 class SparseConv2DGradientTests(tf.test.TestCase):
