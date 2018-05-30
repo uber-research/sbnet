@@ -57,9 +57,9 @@ def gather_custom(x, mask, bsize, ksize, strides, padding):
         x,
         indices.bin_counts,
         indices.active_block_indices,
-        bsize=block_params.bsize,
-        boffset=block_params.boffset,
-        bstride=block_params.bstrides)
+        dynamic_bsize=tf.constant(block_params.bsize, tf.int32),
+        dynamic_bstride=tf.constant(block_params.bstrides, tf.int32),
+        dynamic_boffset=tf.constant(block_params.boffset, tf.int32))
     return p, indices
 
 

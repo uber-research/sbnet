@@ -40,9 +40,9 @@ def _sparse_gather_grad(op, grad):
     x = op.inputs[0]
     binCounts = op.inputs[1]
     activeBlockIndices = op.inputs[2]
-    bsize = op.get_attr("bsize")
-    bstride = op.get_attr("bstride")
-    boffset = op.get_attr("boffset")
+    bsize = op.inputs[3]
+    bstride = op.inputs[4]
+    boffset = op.inputs[5]
     transpose = op.get_attr("transpose")
 
     # if scatter is overlapping then gradient should still work
@@ -53,14 +53,14 @@ def _sparse_gather_grad(op, grad):
         binCounts,
         activeBlockIndices,
         tf.zeros_like(x),    # output base tensor to add on top of
-        bsize=bsize,
-        bstride=bstride,
-        boffset=boffset,
+        dynamic_bsize=bsize,
+        dynamic_bstride=bstride,
+        dynamic_boffset=boffset,
         add=True,
         transpose=transpose,
         atomic=True)
 
-    return [result, None, None]    # no gradient wrt indices
+    return [result, None, None, None, None, None]    # no gradients wrt indices or block params
 
 
 @ops.RegisterGradient("SparseScatter")
@@ -71,13 +71,13 @@ def _sparse_scatter_grad(op, grad):
     binCounts = op.inputs[1]
     activeBlockIndices = op.inputs[2]
     ybase = op.inputs[3]
-    bsize = op.get_attr("bsize")
-    bstride = op.get_attr("bstride")
-    boffset = op.get_attr("boffset")
+    bsize = op.inputs[4]
+    bstride = op.inputs[5]
+    boffset = op.inputs[6]
     doAdd = op.get_attr("add")
 
     dout_dx = sbnet_module.sparse_gather(
-        grad, binCounts, activeBlockIndices, bsize=bsize, bstride=bstride, boffset=boffset)
+        grad, binCounts, activeBlockIndices, dynamic_bsize=bsize, dynamic_bstride=bstride, dynamic_boffset=boffset)
 
     # return a list of gradients of output with respect to each input
     if not doAdd:
@@ -87,15 +87,15 @@ def _sparse_scatter_grad(op, grad):
             binCounts,
             activeBlockIndices,
             tf.ones_like(grad),
-            bsize=bsize,
-            bstride=bstride,
-            boffset=boffset,
+            dynamic_bsize=bsize,
+            dynamic_bstride=bstride,
+            dynamic_boffset=boffset,
             add=False)
         dy_dybase = grad * stamp_out_blocks
-        return [dout_dx, None, None, dy_dybase]
+        return [dout_dx, None, None, dy_dybase, None, None, None]
     else:
         # d(x+ybase)/dybase = 1, so just pass back grad as dout_dybase
-        return [dout_dx, None, None, grad]
+        return [dout_dx, None, None, grad, None, None, None]
 
 
 def calcBlockCount1d(WW, SS, VV, BOFFSW):
@@ -208,19 +208,19 @@ class TestSparseConvolutions(unittest.TestCase):
                         tf_x,
                         tf_bin_counts,
                         tf_active_block_indices,
-                        bsize=[RR, SS],
-                        boffset=BOFFS,
-                        bstride=[UU, VV],
+                        dynamic_bsize=tf.constant([RR, SS], dtype=tf.int32),
+                        dynamic_bstride=tf.constant([UU, VV], dtype=tf.int32),
+                        dynamic_boffset=tf.constant([BOFFS[0], BOFFS[1]], dtype=tf.int32),
                         transpose=transpose)
                     if test_var:
                         y1000 = sbnet_module.sparse_scatter_var(
                             blockStack,
                             tf_bin_counts,
                             tf_active_block_indices,
-                            x1000,    # base variable to copy to output and overwrite on top of
-                            bsize=[RR, SS],
-                            boffset=BOFFS,
-                            bstride=[UU, VV],
+                            x1000, # base variable to copy to output and overwrite on top of
+                            dynamic_bsize=tf.constant([RR, SS], dtype=tf.int32),
+                            dynamic_bstride=tf.constant([UU, VV], dtype=tf.int32),
+                            dynamic_boffset=tf.constant([BOFFS[0], BOFFS[1]], dtype=tf.int32),
                             add=do_add,
                             atomic=use_atomics,
                             transpose=transpose)
@@ -231,9 +231,9 @@ class TestSparseConvolutions(unittest.TestCase):
                             tf_bin_counts,
                             tf_active_block_indices,
                             x1000,    # base tensor to copy to output and overwrite on top of
-                            bsize=[RR, SS],
-                            boffset=BOFFS,
-                            bstride=[UU, VV],
+                            dynamic_bsize=tf.constant([RR, SS], dtype=tf.int32),
+                            dynamic_bstride=tf.constant([UU, VV], dtype=tf.int32),
+                            dynamic_boffset=tf.constant([BOFFS[0], BOFFS[1]], dtype=tf.int32),
                             add=do_add,
                             atomic=use_atomics,
                             transpose=transpose)

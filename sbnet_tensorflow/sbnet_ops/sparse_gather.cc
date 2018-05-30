@@ -47,13 +47,13 @@ using GPUDevice = Eigen::GpuDevice;
 // AP TODO: quite a bit of duplication here, refactor
 REGISTER_OP("SparseGather")
     .Attr("T: {float}")
-    .Attr("bsize: list(int)")
-    .Attr("bstride: list(int)")
-    .Attr("boffset: list(int)")
     .Attr("transpose: bool = false")
     .Input("x: T")
     .Input("bin_counts: int32")
     .Input("active_block_indices: int16")
+    .Input("dynamic_bsize: int32")
+    .Input("dynamic_bstride: int32")
+    .Input("dynamic_boffset: int32")
     .Output("y: T");
 
 // CPU specialization of actual computation.
@@ -151,18 +151,7 @@ public:
         : OpKernel(context)
     {
         // TODO: refactor/remove duplication with other ops
-        std::vector<int> bsize, bstride, boffset;
-        OP_REQUIRES_OK(context, context->GetAttr("bsize", &bsize));
-        OP_REQUIRES_OK(context, context->GetAttr("bstride", &bstride));
-        OP_REQUIRES_OK(context, context->GetAttr("boffset", &boffset));
-        OP_REQUIRES(context,
-            bsize.size() == 2 && bstride.size() == 2 && boffset.size() == 2,
-            errors::InvalidArgument("All block attributes must have a shape of (2,)."));
         OP_REQUIRES_OK(context, context->GetAttr("transpose", &transpose_));
-
-        bSzH_    = bsize[0];   bSzW_ = bsize[1];
-        bStrH_   = bstride[0]; bStrW_ = bstride[1];
-        bOffsH0_ = boffset[0]; bOffsW0_ = boffset[1];
     }
 
     ~SparseGatherOp() override {
@@ -173,6 +162,24 @@ public:
         // Grabs the input mask.
         const Tensor& x = context->input(0);
         OP_REQUIRES(context, x.dims() == 4, errors::InvalidArgument("x must be rank 4"));
+
+        const Tensor& bsize_dynamic = context->input(3);
+        const Tensor& bstride_dynamic = context->input(4);
+        const Tensor& boffset_dynamic = context->input(5);
+        const Tensor* toCheck[] = {&bsize_dynamic, &bstride_dynamic, &boffset_dynamic};
+        for (auto tc: toCheck) {
+            int bNumDims = tc->dims();
+            int dim0 = tc->dim_size(0);
+            OP_REQUIRES(context, bNumDims == 1 && dim0 == 2,
+                errors::InvalidArgument("dynamic_b<size, stride, offset> should be one-dimensional with shape[0] == 2."));
+        }
+
+        int bSzH = bsize_dynamic.flat<int32>().data()[0];
+        int bSzW = bsize_dynamic.flat<int32>().data()[1];
+        int bStrH = bstride_dynamic.flat<int32>().data()[0];
+        int bStrW = bstride_dynamic.flat<int32>().data()[1];
+        int bOffsH0 = boffset_dynamic.flat<int32>().data()[0];
+        int bOffsW0 = boffset_dynamic.flat<int32>().data()[1];
 
         // Grabs input shape.
         int N = x.dim_size(0);
@@ -187,13 +194,13 @@ public:
         // Initializes output.
         // TODO: try to find a way not to redo the allocation in Compute
         Tensor* y = NULL;
-        int yShapeArr[] = { bin0Count, bSzH_, bSzW_, C };
+        int yShapeArr[] = { bin0Count, bSzH, bSzW, C };
         if (transpose_)
         {
             // output is NCHW for tranposed version
             yShapeArr[1] = C;
-            yShapeArr[2] = bSzH_;
-            yShapeArr[3] = bSzW_;
+            yShapeArr[2] = bSzH;
+            yShapeArr[3] = bSzW;
         }
         TensorShape yShape;
         TensorShapeUtils::MakeShape(yShapeArr, 4, &yShape);
@@ -205,20 +212,12 @@ public:
             context->eigen_device<Device>(),
             x.flat<T>().data(), N, H, W, C,
             y->flat<T>().data(),
-            bOffsH0_, bOffsW0_, bSzH_, bSzW_, bStrH_, bStrW_,
+            bOffsH0, bOffsW0, bSzH, bSzW, bStrH, bStrW,
             bin0Count, (const short*)activeBlockIndices.flat<int16>().data(),
             transpose_);
     }
 
 private:
-    int32* counterPtr_ = nullptr;    // host memory for counter result
-    int32 counterCpu = 0;            // TODO: hacky
-    int bOffsH0_ = 0;                // Block padding offset height, negative.
-    int bOffsW0_ = 0;                // Block padding offset width, negative.
-    int bSzH_ = 0;                   // Block size height.
-    int bSzW_ = 0;                   // Block size width.
-    int bStrH_ = 0;                  // Block stride, height.
-    int bStrW_ = 0;                  // Block stride, width.
     bool transpose_ = false;
 };
 
@@ -232,7 +231,9 @@ REGISTER_CPU(float);
 #ifdef GOOGLE_CUDA
 #define REGISTER_GPU(T) \
     REGISTER_KERNEL_BUILDER( \
-        Name("SparseGather").Device(DEVICE_GPU).TypeConstraint<T>("T").HostMemory("bin_counts"), SparseGatherOp<GPUDevice, T>);
+        Name("SparseGather").Device(DEVICE_GPU).TypeConstraint<T>("T").HostMemory("bin_counts") \
+        .HostMemory("dynamic_bsize").HostMemory("dynamic_bstride").HostMemory("dynamic_boffset"), \
+        SparseGatherOp<GPUDevice, T>);
 REGISTER_GPU(float);
 #undef REGISTER_GPU
 #endif
@@ -240,9 +241,6 @@ REGISTER_GPU(float);
 
 REGISTER_OP("SparseScatterVar")
     .Attr("T: {float}")
-    .Attr("bsize: list(int)")
-    .Attr("bstride: list(int)")
-    .Attr("boffset: list(int)")
     .Attr("add: bool")
     .Attr("atomic: bool = false")
     .Attr("transpose: bool = false")
@@ -250,13 +248,13 @@ REGISTER_OP("SparseScatterVar")
     .Input("bin_counts: int32")
     .Input("active_block_indices: int16")
     .Input("ybase: Ref(T)") // ybase values will be overwritten with scatters from x
+    .Input("dynamic_bsize: int32")
+    .Input("dynamic_bstride: int32")
+    .Input("dynamic_boffset: int32")
     .Output("y: Ref(T)"); // Dimensions: NHWC, scatter will write on top of current y content
 
 REGISTER_OP("SparseScatter")
     .Attr("T: {float}")
-    .Attr("bsize: list(int)")
-    .Attr("bstride: list(int)")
-    .Attr("boffset: list(int)")
     .Attr("add: bool")
     .Attr("atomic: bool = false")
     .Attr("transpose: bool = false")
@@ -264,6 +262,9 @@ REGISTER_OP("SparseScatter")
     .Input("bin_counts: int32")
     .Input("active_block_indices: int16")
     .Input("ybase: T") // ybase values will be copied to output and overwritten with scatters from x
+    .Input("dynamic_bsize: int32")
+    .Input("dynamic_bstride: int32")
+    .Input("dynamic_boffset: int32")
     .Output("y: T"); // Dimensions: NHWC, scatter will write on top of ybase content
 
 // OpKernel definition.
@@ -274,25 +275,10 @@ public:
         : OpKernel(context)
     {
         // TODO: refactor/remove duplication with other ops
-        std::vector<int> bsize, bstride, boffset;
-        OP_REQUIRES_OK(context, context->GetAttr("bsize", &bsize));
-        OP_REQUIRES_OK(context, context->GetAttr("bstride", &bstride));
-        OP_REQUIRES_OK(context, context->GetAttr("boffset", &boffset));
-        OP_REQUIRES(context,
-            bsize.size() == 2 && bstride.size() == 2 && boffset.size() == 2,
-            errors::InvalidArgument("All block attributes must have a shape of (2,)."));
-        bSzH_    = bsize[0];   bSzW_ = bsize[1];
-        bStrH_   = bstride[0]; bStrW_ = bstride[1];
-        bOffsH0_ = boffset[0]; bOffsW0_ = boffset[1];
         OP_REQUIRES_OK(context, context->GetAttr("add", &doAdd_));
         OP_REQUIRES_OK(context, context->GetAttr("transpose", &transpose_));
         OP_REQUIRES_OK(context, context->GetAttr("atomic", &atomic_));
-        if (!atomic_ && doAdd_) {
-            OP_REQUIRES(
-                context, bstride[0] >= bsize[0] && bstride[1] >= bsize[1],
-                errors::InvalidArgument("Only non-overlapping blocks are supported with add=True, atomic=False") );
-        }
-    }
+   }
 
     ~SparseScatterOp() override {
     }
@@ -315,6 +301,29 @@ public:
         int W = ybaseShape.dim_size(2);
         int C = ybaseShape.dim_size(3);
 
+        const Tensor& bsize_dynamic = context->input(4);
+        const Tensor& bstride_dynamic = context->input(5);
+        const Tensor& boffset_dynamic = context->input(6);
+        const Tensor* toCheck[] = {&bsize_dynamic, &bstride_dynamic, &boffset_dynamic};
+        for (auto tc: toCheck) {
+            int bNumDims = tc->dims();
+            int dim0 = tc->dim_size(0);
+            OP_REQUIRES(context, bNumDims == 1 && dim0 == 2,
+                errors::InvalidArgument("dynamic_b<size, stride, offset> should be one-dimensional with shape[0] == 2."));
+        }
+
+        int bSzH = bsize_dynamic.flat<int32>().data()[0];
+        int bSzW = bsize_dynamic.flat<int32>().data()[1];
+        int bStrH = bstride_dynamic.flat<int32>().data()[0];
+        int bStrW = bstride_dynamic.flat<int32>().data()[1];
+        int bOffsH0 = boffset_dynamic.flat<int32>().data()[0];
+        int bOffsW0 = boffset_dynamic.flat<int32>().data()[1];
+
+        if (!atomic_ && doAdd_) {
+            OP_REQUIRES(
+                context, bStrH >= bSzH && bStrW >= bSzW,
+                errors::InvalidArgument("Only non-overlapping blocks are supported with add=True, atomic=False") );
+        }
         OP_REQUIRES(context, ybase.dims() == 4, errors::InvalidArgument("ybase must be rank 4"));
 
         // read the number of active blocks from bin_counts input that is expected to be always in host mem
@@ -342,21 +351,13 @@ public:
             context->eigen_device<Device>(),
             x.flat<T>().data(), N, H, W, C,
             outData,
-            bOffsH0_, bOffsW0_, bSzH_, bSzW_, bStrH_, bStrW_,
+            bOffsH0, bOffsW0, bSzH, bSzW, bStrH, bStrW,
             bin0Count, (const short*)activeBlockIndices.flat<int16>().data(),
             doAdd_, transpose_, atomic_
         );
     }
 
 private:
-    int32* counterPtr_ = nullptr;    // host memory for counter result
-    int32 counterCpu = 0;            // TODO: hacky
-    int bOffsH0_ = 0;                // Block padding offset height, negative.
-    int bOffsW0_ = 0;                // Block padding offset width, negative.
-    int bSzH_ = 0;                   // Block size height.
-    int bSzW_ = 0;                   // Block size width.
-    int bStrH_ = 0;                  // Block stride, height.
-    int bStrW_ = 0;                  // Block stride, width.
     bool doAdd_ = false;
     bool transpose_ = false;
     bool atomic_ = false;
@@ -375,10 +376,12 @@ REGISTER_CPU(float);
 #ifdef GOOGLE_CUDA
 #define REGISTER_GPU(T) \
     REGISTER_KERNEL_BUILDER( \
-        Name("SparseScatter").Device(DEVICE_GPU).TypeConstraint<T>("T").HostMemory("bin_counts"), \
+        Name("SparseScatter").Device(DEVICE_GPU).TypeConstraint<T>("T").HostMemory("bin_counts") \
+        .HostMemory("dynamic_bsize").HostMemory("dynamic_bstride").HostMemory("dynamic_boffset"), \
         SparseScatterOp<GPUDevice, T, false>); \
     REGISTER_KERNEL_BUILDER( \
-        Name("SparseScatterVar").Device(DEVICE_GPU).TypeConstraint<T>("T").HostMemory("bin_counts"), \
+        Name("SparseScatterVar").Device(DEVICE_GPU).TypeConstraint<T>("T").HostMemory("bin_counts") \
+        .HostMemory("dynamic_bsize").HostMemory("dynamic_bstride").HostMemory("dynamic_boffset"), \
         SparseScatterOp<GPUDevice, T, true>);
 REGISTER_GPU(float);
 #undef REGISTER_GPU

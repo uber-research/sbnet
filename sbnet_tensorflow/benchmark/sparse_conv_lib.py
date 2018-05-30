@@ -83,26 +83,27 @@ def _sparse_gather_grad(op, grad):
     x = op.inputs[0]
     binCounts = op.inputs[1]
     activeBlockIndices = op.inputs[2]
-    bsize = op.get_attr("bsize")
-    bstride = op.get_attr("bstride")
-    boffset = op.get_attr("boffset")
+    bsize = op.inputs[3]
+    bstride = op.inputs[4]
+    boffset = op.inputs[5]
     transpose = op.get_attr("transpose")
 
-    # if scatter is overlapping then gradient still work because we use atomic adds
+    # if scatter is overlapping then gradient should still work
+    # because we are overwriting the same values
     # compute dOutput/dx
     result = sbnet_module.sparse_scatter(
         grad,
         binCounts,
         activeBlockIndices,
-        tf.zeros_like(x),
-        bsize=bsize,
-        bstride=bstride,
-        boffset=boffset,
+        tf.zeros_like(x),    # output base tensor to add on top of
+        dynamic_bsize=bsize,
+        dynamic_bstride=bstride,
+        dynamic_boffset=boffset,
         add=True,
         transpose=transpose,
         atomic=True)
 
-    return [result, None, None]    # no gradient wrt indices
+    return [result, None, None, None, None, None]    # no gradients wrt indices or block params
 
 
 @ops.RegisterGradient("SparseScatter")
@@ -113,20 +114,13 @@ def _sparse_scatter_grad(op, grad):
     binCounts = op.inputs[1]
     activeBlockIndices = op.inputs[2]
     ybase = op.inputs[3]
-    bsize = op.get_attr("bsize")
-    bstride = op.get_attr("bstride")
-    boffset = op.get_attr("boffset")
+    bsize = op.inputs[4]
+    bstride = op.inputs[5]
+    boffset = op.inputs[6]
     doAdd = op.get_attr("add")
-    transpose = op.get_attr("transpose")
 
     dout_dx = sbnet_module.sparse_gather(
-        grad,
-        binCounts,
-        activeBlockIndices,
-        bsize=bsize,
-        bstride=bstride,
-        boffset=boffset,
-        transpose=transpose)
+        grad, binCounts, activeBlockIndices, dynamic_bsize=bsize, dynamic_bstride=bstride, dynamic_boffset=boffset)
 
     # return a list of gradients of output with respect to each input
     if not doAdd:
@@ -136,16 +130,15 @@ def _sparse_scatter_grad(op, grad):
             binCounts,
             activeBlockIndices,
             tf.ones_like(grad),
-            bsize=bsize,
-            bstride=bstride,
-            boffset=boffset,
-            add=False,
-            transpose=transpose)
+            dynamic_bsize=bsize,
+            dynamic_bstride=bstride,
+            dynamic_boffset=boffset,
+            add=False)
         dy_dybase = grad * stamp_out_blocks
-        return [dout_dx, None, None, dy_dybase]
+        return [dout_dx, None, None, dy_dybase, None, None, None]
     else:
         # d(x+ybase)/dybase = 1, so just pass back grad as dout_dybase
-        return [dout_dx, None, None, grad]
+        return [dout_dx, None, None, grad, None, None, None]
 
 
 def _pad_input(x, ksize, strides, padding, bsize=None, bstrides=None):
@@ -442,9 +435,9 @@ def convert_mask_to_indices_custom(mask, block_params, tol, avgpool=False):
     """
     return sbnet_module.reduce_mask(
         mask, block_params.bcount,
-        bsize=block_params.bsize,
-        boffset=block_params.boffset,
-        bstride=block_params.bstrides,
+        dynamic_bsize=tf.constant(block_params.bsize, tf.int32),
+        dynamic_bstride=tf.constant(block_params.bstrides, tf.int32),
+        dynamic_boffset=tf.constant(block_params.boffset, tf.int32),
         avgpool=avgpool,
         tol=tol)
 
@@ -536,9 +529,9 @@ def sparse_conv2d_custom(x,
         x,
         indices.bin_counts,
         indices.active_block_indices,
-        bsize=block_params.bsize,
-        boffset=block_params.boffset,
-        bstride=block_params.bstrides,
+        dynamic_bsize=block_params.bsize,
+        dynamic_bstride=block_params.bstrides,
+        dynamic_boffset=block_params.boffset,
         transpose=transpose)
 
     # Convolution on patches.
@@ -554,9 +547,9 @@ def sparse_conv2d_custom(x,
             indices.bin_counts,
             indices.active_block_indices,
             x,
-            bsize=block_params.bsize_out,
-            boffset=[0, 0],
-            bstride=block_params.bstrides,
+            dynamic_bsize=tf.constant(block_params.bsize_out, dtype=tf.int32),
+            dynamic_bstride=tf.constant(block_params.bstrides, dtype=tf.int32),
+            dynamic_boffset=tf.constant([0, 0], dtype=tf.int32),
             add=False,
             transpose=transpose,
             atomic=atomic)
@@ -566,9 +559,9 @@ def sparse_conv2d_custom(x,
             indices.bin_counts,
             indices.active_block_indices,
             x,
-            bsize=block_params.bsize_out,
-            boffset=[0, 0],
-            bstride=block_params.bsize_out,
+            dynamic_bsize=tf.constant(block_params.bsize_out, dtype=tf.int32),
+            dynamic_bstride=tf.constant(block_params.bsize_out, dtype=tf.int32),
+            dynamic_boffset=tf.constant([0, 0], dtype=tf.int32),
             add=False,
             transpose=transpose,
             atomic=atomic)
@@ -764,9 +757,9 @@ def sparse_res_block_bottleneck(x,
         x,
         indices.bin_counts,
         indices.active_block_indices,
-        bsize=block_params.bsize,
-        boffset=block_params.boffset,
-        bstride=block_params.bstrides,
+        dynamic_bsize=block_params.bsize,
+        dynamic_bstride=block_params.bstrides,
+        dynamic_boffset=block_params.boffset,
         transpose=transpose)
 
     if w_project is not None:
@@ -793,9 +786,9 @@ def sparse_res_block_bottleneck(x,
             indices.bin_counts,
             indices.active_block_indices,
             x,
-            bsize=block_params.bsize_out,
-            boffset=[0, 0],
-            bstride=block_params.bsize_out,
+            dynamic_bsize=tf.constant(block_params.bsize_out, dtype=tf.int32),
+            dynamic_bstride=tf.constant(block_params.bsize_out, dtype=tf.int32),
+            dynamic_boffset=tf.constant([0, 0], dtype=tf.int32),
             add=True,
             transpose=transpose)
     else:
@@ -804,9 +797,9 @@ def sparse_res_block_bottleneck(x,
             indices.bin_counts,
             indices.active_block_indices,
             x,
-            bsize=block_params.bsize_out,
-            boffset=[0, 0],
-            bstride=block_params.bsize_out,
+            dynamic_bsize=tf.constant(block_params.bsize_out, dtype=tf.int32),
+            dynamic_bstride=tf.constant(block_params.bsize_out, dtype=tf.int32),
+            dynamic_boffset=tf.constant([0, 0], dtype=tf.int32),
             add=True,
             transpose=transpose)
     return y
