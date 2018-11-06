@@ -123,7 +123,7 @@ __device__ void reduceMask_t(
     if (threadIdx.x == 0) {
         float mx1 = shmemx[0];
         // For sizes >= blockIdx.x we already reduced in the above loop
-        const int numWarps = min(DIVUP(bH*bW, warpLanes), blockIdx.x);
+        const int numWarps = min(DIVUP(bH*bW, warpLanes), blockDim.x);
         #pragma unroll
         for (int iWarp = 1; iWarp < numWarps; iWarp++)
             mx1 = avgPooling ? (mx1 + shmemx[iWarp]) : max(mx1, shmemx[iWarp]);
