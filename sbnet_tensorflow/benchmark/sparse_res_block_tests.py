@@ -206,12 +206,6 @@ class SparseResBlockGradientTests(tf.test.TestCase):
             ind_var = tf.Variable(ind.active_block_indices, trainable=False)
             bin_var = tf.Variable(ind.bin_counts, trainable=False)
             ind_fixed = ReduceMask(active_block_indices=ind_var, bin_counts=bin_var)
-            tf_ind = convert_mask_to_indices_custom(mask, blk_params, 0.)
-            with self.test_session() as sess:
-                py_inds = sess.run([tf_ind])
-            ind = lambda: 0
-            ind.bin_counts = tf.constant(py_inds[0].bin_counts)
-            ind.active_block_indices = tf.constant(py_inds[0].active_block_indices)
 
             y = sparse_res_block_bottleneck(
                 x,
@@ -229,7 +223,7 @@ class SparseResBlockGradientTests(tf.test.TestCase):
             print('-' * 55)
             print('Sparse Residual')
             print('{:30s} {:>10s} {:>10s}'.format('name', 'grad angle', 'abs err'))
-            with self.test_session() as sess:
+            with tf.Session() as sess:
                 sess.run(tf.global_variables_initializer())
                 yval = y.eval()
                 err = compute_gradient_angle(x, xval.shape, y, yval.shape, x_init_value=xval)
