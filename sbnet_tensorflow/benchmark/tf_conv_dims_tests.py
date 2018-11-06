@@ -87,7 +87,7 @@ class CalcPaddingTests(tf.test.TestCase):
         try:
             calc_padding_4d(tf.shape(x), [2, 3, 1, 1, 1], [2, 1, 1, 1], 'SAME')
         except AssertionError as e:
-            self.assertEqual(e.message, 'Expect `ksize` a list/tuple of length 4.')
+            self.assertEqual(e.args[0], 'Expect `ksize` a list/tuple of length 4.')
             err_raised = True
         self.assertTrue(err_raised)
 
@@ -98,7 +98,7 @@ class CalcPaddingTests(tf.test.TestCase):
         try:
             calc_padding_4d(tf.shape(x), [2, 3, 1, 1], [2, 1, 1, 1], 'SAME')
         except AssertionError as e:
-            self.assertEqual(e.message, 'Expect first and last dimension of `strides` = 1.')
+            self.assertEqual(e.args[0], 'Expect first and last dimension of `strides` = 1.')
             err_raised = True
         self.assertTrue(err_raised)
 
